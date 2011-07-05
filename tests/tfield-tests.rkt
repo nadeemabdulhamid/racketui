@@ -3,7 +3,7 @@
 (require rackunit
          rackunit/gui
          rackunit/text-ui
-         "tfield.rkt")  
+         "../tfield.rkt")  
 
 
 

@@ -4,9 +4,9 @@
          rackunit
          rackunit/gui
          rackunit/text-ui
-         "tfield.rkt"
-         "tfield-syntax.rkt"
-         "tfield-save.rkt")
+         "../tfield.rkt"
+         "../tfield-syntax.rkt"
+         "../tfield-save.rkt")
 
 
 (struct cartpt (x y) #:transparent)

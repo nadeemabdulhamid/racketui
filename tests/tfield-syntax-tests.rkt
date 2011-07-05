@@ -1,7 +1,7 @@
 #lang racket
 
-(require "tfield.rkt")
-(require "tfield-syntax.rkt")
+(require "../tfield.rkt")
+(require "../tfield-syntax.rkt")
 (require test-engine/racket-tests)
 
 
