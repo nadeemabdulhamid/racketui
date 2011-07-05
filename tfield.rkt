@@ -8,7 +8,7 @@
 #| 
   A "tfield" represents the specification and input data for a web field of
   some type of data (number, string, boolean, etc.). The types of data are
-  intended to match those use in the HtDP student languages. Currently, the
+  intended to match those used in the HtDP student languages. Currently, the
   following types of fields are represented:
 
     constant (value of any type)
@@ -35,6 +35,9 @@
 ;; name is used for form input elements
 
 ; TODO: add (listof procedure) <---- guard functions
+; TODO: once guard predicates are added, possibly collapse
+;       tfield/boolean, /number, /string, /symbol
+;       into a single tfield/basic representation
 
 (struct tfield/const tfield (value) #:transparent)
 (struct tfield/boolean tfield (value) #:transparent)
