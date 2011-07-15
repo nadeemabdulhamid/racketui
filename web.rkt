@@ -41,9 +41,9 @@
 ; again be handled by this same procedure
 
 (define ((req-handler tf) req)
-  (printf "BINDINGS:\n~a\n" (req/bindings->string req))
-  (printf "TFIELD:\n") 
-  (pretty-print (map tfield->value (tfield/function-args tf)))(newline)
+  ;(printf "BINDINGS:\n~a\n" (req/bindings->string req))
+  ;(printf "TFIELD:\n") 
+  ;(pretty-print (map tfield->value (tfield/function-args tf)))(newline)
   
   (define event (parse-event req))
   (define new-tf (event-dispatch tf event))
@@ -51,12 +51,12 @@
   (define next-req
     (send/suspend
      (λ(cont-url) 
-       (printf "TFIELD after:\n")
-       (pretty-print (map tfield->value (tfield/function-args new-tf)))(newline)
+       ;(printf "TFIELD after:\n")
+       ;(pretty-print (map tfield->value (tfield/function-args new-tf)))(newline)
        
        (define resp-xexpr  (ajax-response new-tf event cont-url))
-       (printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
-       (printf "***********************************")(newline)
+       ;(printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
+       ;(printf "***********************************")(newline)
 
        (response/xexpr resp-xexpr 
                        #:mime-type resp-type))))
@@ -243,10 +243,7 @@
     
     ; a number of events just need to replace the updated outer <div>
     ; as a response...
-    [(or 'listof-reorder 'listof-delete 'oneof-change)
-     (printf "TFIELD in ajax-response:\n")
-     (pretty-print (map tfield->value (tfield/function-args tf)))(newline)
-     
+    [(or 'listof-reorder 'listof-delete 'oneof-change)     
      (define name (event-binding ev "name"))
      (define divname (format "#edit-args #~a-div" name))
      `(taconite
