@@ -41,17 +41,44 @@
 ; again be handled by this same procedure
 
 (define ((req-handler tf) req)
+  (printf "BINDINGS:\n~a\n" (req/bindings->string req))
+  (printf "TFIELD:\n") 
+  (pretty-print (map tfield->value (tfield/function-args tf)))(newline)
+  
   (define event (parse-event req))
   (define new-tf (event-dispatch tf event))
   (define resp-type (response-type event))  ; "text/xml" or "text/html"
   (define next-req
     (send/suspend
      (λ(cont-url) 
-       (define resp-xexpr  (ajax-response new-tf event cont-url))  
+       (printf "TFIELD after:\n")
+       (pretty-print (map tfield->value (tfield/function-args new-tf)))(newline)
+       
+       (define resp-xexpr  (ajax-response new-tf event cont-url))
+       (printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
+       (printf "***********************************")(newline)
+
        (response/xexpr resp-xexpr 
                        #:mime-type resp-type))))
   ((req-handler new-tf) next-req))
 
+
+
+; req/bindings->string : request -> string
+; for debugging purposes: produces a string with all bindings in the given
+;  request
+(define (req/bindings->string req)
+  (define p (open-output-bytes))
+  (pretty-print (map (λ(id)
+                       (list id (binding:form-value 
+                                 (bindings-assq id (request-bindings/raw req))))
+                       )
+                     (map binding-id (request-bindings/raw req)) )
+                p
+                )
+  ;(pretty-print (map (λ(b) (list (binding-id b) (binding:form-value b)))
+  ;                   (request-bindings/raw req)))
+  (bytes->string/utf-8 (get-output-bytes p)))
 
 
 ;; ============================================================================
@@ -217,8 +244,11 @@
     ; a number of events just need to replace the updated outer <div>
     ; as a response...
     [(or 'listof-reorder 'listof-delete 'oneof-change)
+     (printf "TFIELD in ajax-response:\n")
+     (pretty-print (map tfield->value (tfield/function-args tf)))(newline)
+     
      (define name (event-binding ev "name"))
-     (define divname (format "#~a-div" name))
+     (define divname (format "#edit-args #~a-div" name))
      `(taconite
        (replaceWith ([select ,divname])
           ,(render/edit (find-named tf name) (find-parent-of-named tf name)))
@@ -232,16 +262,16 @@
      (define num-added 1)
      (define old-count (- (length elts) num-added))
      `(taconite
-       (before ([select ,(format "#~a-ol > li.nosort" name)])
+       (before ([select ,(format "#edit-args #~a-ol > li.nosort" name)])
                ,@(map (curry render-listof-item/edit tf/listof)
                       (take-right elts num-added)))
-       (val ([select ,(format "#~a" name)] 
+       (val ([select ,(format "#edit-args #~a" name)] 
                [arg1 ,(number->string (length elts))]))
        ,cont-url-update 
        ,(refresh-elts
          (if (zero? old-count) 
-           (format "#~a-ol > li:not(.nosort)" name)
-           (format "#~a-ol > li:not(.nosort):gt(~a)" name (- old-count 1)))))]
+           (format "#edit-args #~a-ol > li:not(.nosort)" name)
+           (format "#edit-args #~a-ol > li:not(.nosort):gt(~a)" name (- old-count 1)))))]
        
     ['list-saved 
      (define loose-match? (equal? (event-binding ev "loosematch") "loosematch"))
@@ -255,7 +285,8 @@
        (html ([select "#save-preview"])
              ,(if args
                  `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f)))
-                 `(div "No data"))))]
+                 `(div "No data")))
+       ,cont-url-update)]
     
     [_ `(empty-response)]))
 

@@ -24,7 +24,6 @@ $(function() {
     
     $.when(
 		startupDelay(),
-		populateSaved(),
 		refreshFields()
 	).then( $.unblockUI );
 	
@@ -56,27 +55,40 @@ function onPageLoad() {
 	$("#loosematch").change(populateSaved);
 	$("#usersaveonly").change(populateSaved);
 	var sel = $("#history-select");
-	sel.change(function() { $.get(CONT_URL, { requesttype: "preview-saved", name: sel.val() }) });
+	sel.change(function() { $.get(CONT_URL, { requesttype: "preview-saved", name: sel.val(), conturl: CONT_URL }) });
 	$("#select-save-prev").click(function() {
-		var selected = $("#history-select option:selected");
-		var options = $("#history-select option");
-		var index = options.index(selected);
-		console.log(index + ' <? ' + options.length);
-		if (index+1 < options.length) {
-			$(options[index+1]).attr('selected', 'selected');
-			sel.change();  // update preview
-		}
+		goPreviousSaved();
 		return false;
 	});
 	$("#select-save-next").click(function() {
-		if (selected.val() == '-') 
-			selected.nextUntil('option').next().attr('selected', 'selected');
-		else if (selected.prevUntil('option').prev().val() != "-") 
-			selected.prevUntil('option').prev().attr('selected', 'selected');
-		sel.change();  // update preview
+		goNextSaved();
 		return false;
 	});
+	$("#saved").keydown(function (event) {
+		if (event.keyCode == 39) { goNextSaved(); }
+		else if (event.keyCode == 37) { goPreviousSaved(); }
+	});
 
+}
+
+function goPreviousSaved() {
+	var sel = $("#history-select");
+	var selected = $("#history-select option:selected");
+	var options = $("#history-select option");
+	var index = options.index(selected);
+	var prevIndex = Math.min(index+1, options.length-1);
+	$(options[prevIndex]).attr('selected', 'selected');
+	sel.change();  // update preview
+}
+
+function goNextSaved() {
+	var sel = $("#history-select");
+	var selected = $("#history-select option:selected");
+	var options = $("#history-select option");
+	var index = options.index(selected);
+	var nextIndex = Math.max(index-1, 1);
+	$(options[nextIndex]).attr('selected', 'selected');
+	sel.change();  // update preview
 }
 
 function enableResultsTab(disableIt) {
@@ -113,7 +125,7 @@ function refreshElements(parentSelector) {
 /* adds serialized parameters from the form to the given
    object */
 function addFormData(obj) {
-	return $.extend({}, obj, $("#edit > form").serializeJSON());
+	return $.extend({}, obj, $("#edit > form").serializeJSON(), { conturl: CONT_URL });
 }
 
 /* when a select is changed */
@@ -259,7 +271,9 @@ function extractPrefix(str) {
    and display elements with value of the program's input
    and output data, as appropriate */
 function refreshFields(switchToResultTab) {
-	$.get(CONT_URL, { requesttype: "refresh" });
+	$.get(CONT_URL, { requesttype: "refresh", conturl: CONT_URL });
+	// response calls refreshElements() and populateSaved()
+	//  through taconite eval
 }
 
 
@@ -276,7 +290,7 @@ function populateSaved() {
 				: { requesttype: "list-saved" });
 	return $.ajax({
 		url: CONT_URL,
-		data: params, 
+		data: $.extend({conturl: CONT_URL}, params),
 		success: function(data) {
 			sel.empty();   // clear all current stuff
 			updateContUrl(data);

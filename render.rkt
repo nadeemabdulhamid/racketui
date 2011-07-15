@@ -7,6 +7,13 @@
          xml)
 
 
+;; TODO: maybe render tfield names as 'class'es instead of 'id's in HTML
+;        elements (because the same tfield may be rendered multiple times
+;        in the page -- on the saved preview tab, the edit tab, and/or 
+;        the results tab -- leading to duplicate occurrences of id's)
+;        
+
+
 ;; ============================================================================
 
 ; render-full/string : tfield/function string -> string
