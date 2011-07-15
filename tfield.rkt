@@ -65,7 +65,7 @@
   (let ([next-id 0])
     (values
      (λ() 
-       (define new-name (format "tfield~a" next-id))
+       (define new-name (format "tfield-~a" next-id))
        (set! next-id (add1 next-id))
        new-name)
      (λ(n)
@@ -82,8 +82,18 @@
                  #`(λ(label a.decl ... 
                             #:name [name (gen-new-name)] 
                             #:error [error #f])
-                     (subtype label name error a.id ...))
-                 ]))
+                     (subtype label name error a.id ...))]
+                
+                [(derive-tfield-constructor subtype a:arg-spec ... 
+                                            (~datum #:check) guard-func)
+                 #`(λ(label a.decl ... 
+                            #:name [name (gen-new-name)] 
+                            #:error [err #f])
+                     (define t (subtype label name err a.id ...))
+                     (if (guard-func t) t
+                         (error "Check failed on constructor:" 
+                                (object-name subtype))))]
+                ))
 
 
 ; This is the base constructor
@@ -107,7 +117,13 @@
 (define new-tfield/boolean 
   (derive-tfield-constructor tfield/boolean [value #f]))
 (define new-tfield/struct
-  (derive-tfield-constructor tfield/struct constr args))
+  (let ([check (λ(tf)  ; hack to try to verify that structure is #:transparent
+                 (define c (tfield/struct-constr tf))
+                 (define a (tfield/struct-args tf))
+                 (and (procedure? c) (list? a)
+                      (= (procedure-arity c) (length a))
+                      (struct? (apply c a))))])
+    (derive-tfield-constructor tfield/struct constr args #:check check)))
 (define new-tfield/oneof
   (derive-tfield-constructor tfield/oneof options [chosen #f]))
 (define new-tfield/listof
@@ -211,14 +227,14 @@
     [(tfield/struct label name error constr args)
      (tfield/struct label name #f constr (map clear args))]
     [(tfield/oneof label name error options chosen)
-     (tfield/oneof label name #f (map clear options) chosen)]
+     (tfield/oneof label name #f (map clear options) #f)]
     [(tfield/listof label name error base elts)
-     (tfield/listof label name #f (clear base) 
+     (tfield/listof label name #f (clear base) empty)]
                     ;; should this really clear base???
                     ;; well base should really be cleared to begin with,
                     ;; maybe a TODO: ensure constructor for tfield/listof
                     ;;  clear's base upon initialization
-                    (map clear elts))]
+                    ;;(map clear elts))]
     [(tfield/function title name error text func args result)
      (tfield/function title name #f text func
                       (map clear args) (clear result))]
@@ -713,20 +729,49 @@
 ;;=============================================================================
 ;;=============================================================================
 
+;; TRAVERSAL FUNCTIONS
 
-;; find/tfield : tfield string -> tfield or #f
-;; searches tf until it finds a sub-field of given name and returns it,
-;; or #f if none found
+
+; find-named : tfield string -> tfield or #f
+; searches tf until it finds a sub-field of given name and returns it,
+; or #f if none found
 
 (define (find-named tf target-name)
+  ;; 3 fun ways to accomplish this using the traversal procedures...
+  #;(let/cc k (update-named tf target-name (λ(tf) (k tf))))
+  
+  (let/cc k (visit tf (λ(f) (if (string=? target-name (tfield-name f))
+                                       (k f) #f))))
+  
+  #;(fold tf (λ(cur-tf found?)
+               (or found? (and (string=? target-name
+                                         (tfield-name cur-tf)) cur-tf)))
+          #f))
+
+; find-parent-of-named : tfield string -> tfield or #f
+
+(define (find-parent-of-named tf target-name)
   (let/cc k
-    (update-named tf target-name (λ(tf) (k tf)))))
+    (visit 
+     tf (λ(f)
+          (match f
+            [(tfield/struct label name error constr args)
+             (if (member target-name (map tfield-name args)) (k f) #f)]
+            [(tfield/oneof label name error options chosen)
+             (if (member target-name (map tfield-name options)) (k f) #f)]
+            [(tfield/listof label name error base elts)
+             (if (member target-name (map tfield-name elts)) (k f) #f)]
+            [(tfield/function title name error text func args result)
+             (if (or (member target-name (map tfield-name args))
+                     (equal? target-name (tfield-name result)))
+                 (k f) #f)]
+            [_ #f])))))
 
 
-;; update-named/tfield : tfield string (tfield->tfield) -> tfield or #f
-;; burrows through tf until finds a sub-tfield of given name and then updates
-;; that by applying the given procedure, returns the updated tfield or 
-;; #f if no changes made
+; update-named/tfield : tfield string (tfield->tfield) -> tfield or #f
+; burrows through tf until finds a sub-tfield of given name and then updates
+; that by applying the given procedure, returns the updated tfield or 
+; #f if no changes made
 
 (define (update-named tf target-name tf-func)
   (define (copy/non-false old new)
@@ -796,11 +841,66 @@
 
 
 
+; fold : tfield (tfield any -> any) any -> any
+
+(define (fold tf proc init)
+  (match tf
+    [(tfield/const label name error value) (proc tf init)]
+    [(tfield/boolean label name error value) (proc tf init)]
+    [(tfield/number label name error value raw-value) (proc tf init)]
+    [(tfield/symbol label name error value) (proc tf init)]
+    [(tfield/string label name error value non-empty?) (proc tf init)]
+    [(tfield/struct label name error constr args) 
+     (proc tf (foldl (λ(f i) (fold f proc i)) init args))]
+    [(tfield/oneof label name error options chosen)
+     (proc tf (foldl (λ(f i) (fold f proc i)) init options))]   
+     ;; ^^^ goes through all options
+    [(tfield/listof label name error base elts) 
+     (proc tf (foldl (λ(f i) (fold f proc i)) init elts))]
+    [(tfield/function title name error text func args result)
+     (proc tf (fold result proc (foldl (λ(f i) (fold f proc i)) init args)))]
+    [_ (error (object-name fold)
+              (format "somehow got an unknown field type: ~a" tf))]))
+
+
+; visit : tfield (tfield -> #) -> #
+; imperative traversal
+
+(define (visit tf func)
+  (fold tf (λ(f i) (func f)) #f))
+
+
 
 ;;=============================================================================
 ;;=============================================================================
 ;;;============================================================================
 ;;; Utility Functions
+
+
+; depth-of : (or tfield string) -> number
+; produces numbers of nesting levels under which tfield of given name is
+; (basically depends on # of "-" characters in the standard naming scheme)
+(define (depth-of tf/name)
+  (define name (if (tfield? tf/name) (tfield-name tf/name) tf/name))
+  (length (filter (λ(c) (char=? #\- c)) (string->list name))))
+
+
+; move-to : list number number -> list
+; moves element at position n to position m in the list
+;  (assumes the positions are valid)
+(define (move-to lst n m)
+  (cond [(= n m) lst]
+        [(< n m) 
+         (define-values (anb c) (split-at lst (add1 m)))
+         (define-values (a nb) (split-at anb n))
+         (define-values (nth b) (values (first nb) (rest nb)))
+         (append a b (cons nth c))]
+        [(> n m)
+         (define-values (ab nc) (split-at lst n))
+         (define-values (nth c) (values (first nc) (rest nc)))
+         (define-values (a b) (split-at ab m))
+         (append a (cons nth b) c)]))
+
 
 ; bump-up : any list -> list
 ; swaps e with the element before it in the list
@@ -958,13 +1058,16 @@
  
  (update-named (-> tfield? string? (-> tfield? tfield?) (or/c #f tfield?)))
  (find-named (-> tfield? string? (or/c #f tfield?)))
- 
+ (find-parent-of-named (-> tfield? string? (or/c #f tfield?)))
+
  (extract&apply-args (-> procedure? (listof tfield?) tfield? list?))
  (apply-tfield/function (-> tfield/function? (or/c #f tfield/function?)))
  
  (rename/deep (->* (tfield?) ((or/c #f string?)) tfield?))
  (rename/deep* (->* ((listof tfield?) string?) (number?) (listof tfield?)))
  
+ (depth-of (-> (or/c tfield? string?) number?))
+ (move-to (-> list? number? number? list?))
  (bump-up (-> any/c list? list?))
  (bump-down (-> any/c list? list?))
  

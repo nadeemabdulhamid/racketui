@@ -1,0 +1,153 @@
+
+body, .ui-widget {
+    font-size: 12pt;
+    font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
+
+/***************************************************************
+ * Overall Structure of Page */
+
+.bottom {
+    clear: both;
+}
+
+#content {
+    background-color: #ddf;
+    border: 3px inset black;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 1em;
+    width: 800px;
+}
+
+#content div.form-submit {
+    clear: both;
+    margin-top: 1.5em;
+    border-top: 1px solid black;
+    padding-top: 10px;
+    text-align: center;
+}
+
+#content h1 {
+    text-align: center;
+}
+
+#content p {
+
+}
+
+#header {
+    background-color: #00f;
+    color: white;
+    font-style: italic;
+    padding: 5px;
+    text-align: center;
+}
+
+
+/***************************************************************
+ * Saved Tab */
+
+.save-choice, .save-content {
+    background-color: #ddd;
+    border: 3px inset;
+    margin-top: 2em;
+    margin-bottom: 2em;
+    padding: .5em;
+}
+
+option.usersave {
+    font-weight: bold;
+}
+
+select#history-select {
+    width: 275px;
+}
+
+
+/***************************************************************
+ * Basic Form Element Formatting */
+
+.basic > .label {
+    color: #009;
+}
+
+.error, .form-error {
+    font-style: italic;
+    color: red;
+}
+
+legend {
+	/*border: 1px solid #009;*/
+	/* background-color: white;*/
+	color: #009;
+}
+
+.nest1 { background-color: #ddd; }
+.nest2 { background-color: #bbb; }
+.nest3 { background-color: #ccc; }
+
+.tfield input:focus {
+    background-color: #ffb;
+}
+
+
+/***************************************************************
+ * listof Elements Formatting */
+
+div.tfield-listof > fieldset > ol {
+    list-style-type: none;
+    padding: 0em;
+    margin: 0em;
+}
+
+div.tfield-listof > fieldset > ol > li {
+    margin: 3px 0px;
+}
+
+div.li-handle {
+    border: 1px dotted black;
+    float: left;
+    margin-left: .5em;
+    margin-right: 0em;
+    margin-top: .5em;
+    margin-bottom: .5em;
+}
+
+span.dragbtn {
+    height: 20px;
+    width: 20px;
+}
+
+button.delbtn {
+    float: left;
+    height: 20px;
+    width: 20px;
+    margin-left: .25em;
+    margin-right: .5em;
+    margin-top: .5em;
+    margin-bottom: .5em;
+}
+
+
+
+
+
+
+
+/* struct stuff */
+/*
+
+div.tfield-struct-field {
+    display: inline;
+    min-width: 10em;
+}
+
+div.tfield-struct > fieldset > ul  {
+    list-style-type: none;
+    text-align: center;
+}
+

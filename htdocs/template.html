@@ -1,0 +1,130 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>
+      @title
+    </title>
+
+    <link rel="stylesheet" type="text/css"
+	  href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.13/themes/base/jquery-ui.css" />
+    <link rel="stylesheet" type="text/css" href="racketui.css" />
+
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.13/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="jquery.blockUI.js"></script>
+    <script type="text/javascript" src="https://raw.github.com/malsup/taconite/master/jquery.taconite.js"></script>
+    <!--script type="text/javascript" src="http://andygroff.com/jquery-debugger-debugging-plugin/andy.jqdebugger.js"></script-->
+
+    <script type="text/javascript">var CONT_URL = "@cont-url";</script>
+    <script type="text/javascript" src="racketui.js"></script>
+ </head>
+
+  <body>
+    <div id="header">RacketUI</div>
+    
+    <div id="content">
+      <h1 id="program-title">@|title|</h1>
+      <p id="program-text">@|text|</p>
+      
+      <div id="loadMessage" style="display:none; padding: 1em;">
+		<img src="loading.gif" alt="loading animation" /><p>Loading @|title|...</p>	
+      </div>
+
+      <div id="tabs">
+		<ul>
+		  <li><a href="#saved">Saved</a></li>
+		  <li><a href="#edit"><strong>Program Input</strong></a></li>
+		  <li><a href="#results">Results</a></li>
+		</ul>
+
+		<div id="saved">
+		  <div class="save-choice">
+			<div style="float: left;">
+			  <label>Choose previous input entry:
+			  <br />
+			  <select id="history-select">
+				<option value="-">-</option>
+			  </select></label>
+			  <br />
+			  <label>	
+				<input type="checkbox" id="loosematch" name="loosematch"/>
+				Include all similar input entries
+			  </label>
+			  <br />
+			  <label>
+			  	<input type="checkbox" id="usersaveonly" name="usersaveonly" />
+			  	Only show user-saved input
+			  </label>
+			</div>
+			<div style="float: left;">
+			  <button id="load-save-edit">Load/Edit</button>
+			  <button id="load-save-apply">Load/Apply</button>
+			  <br />
+			  <button id="delete-one-save">Remove This Entry</button>
+			  <br />
+			  <button id="delete-all-save">Remove All Entries</button>
+			</div>
+			<hr style="clear: both;" />
+			<div style="float: left;">
+			  <a id="select-save-prev" href="#">&lt; Previous entry</a>
+			</div>
+			<div style="float: right;">
+			  <a id="select-save-next" href="#">&gt; Next entry</a>
+			</div>
+			<div style="clear: both;"></div>
+		  </div>
+		  
+		  <div id="save-preview" class="display save-content"></div>
+		</div>  <!-- #saved  -->
+
+		<div id="edit" class="edit">
+		  <form action="">
+			<div id="form-error"></div>
+			<div id="edit-args" class="edit nest1"></div>
+	
+			<div class="form-submit">
+				<button id="apply-input-button" type="button">Apply input</button>
+				<button id="save-input-button" type="button">Save current input</button>
+				<button id="clear-input-button" type="button">Clear all input</button>
+			  <!--
+			  <input type="submit" id="form-submit" name="form-submit" value="Apply Input" />
+			  <input type="button" id="form-debug" name="form-debug" value="Form Debug" />
+			  <input type="reset" id="form-reset" value="Clear current input" />
+			  -->
+			</div>
+		  </form>
+		</div>    <!-- #edit -->
+	
+		<div id="results" class="display">
+		  <fieldset class="prog-fieldset">
+			<legend class="legend">Program Output</legend>
+			<div id="program-output"></div>
+		  </fieldset>
+	
+		  <hr />
+	
+		  <fieldset class="prog-fieldset">
+			<legend class="legend">Program Input</legend>
+			<div class="reenter-input">
+				<button id="edit-again-button" type="button">Edit Input</button>
+			</div>
+			<div id="program-input"></div>
+		  </fieldset>
+		</div>  <!-- #results -->
+
+	  </div>  <!-- #tabs -->
+    </div>  <!-- #content -->
+    
+    <hr />
+    
+    <div id="footer">
+      <a href="/quit">
+		<span class="ui-icon ui-icon-power" style="float: left;"></span>
+		Exit Server
+      </a>
+    </div>
+    
+  </body>
+</html>

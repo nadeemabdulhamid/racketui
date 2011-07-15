@@ -1,7 +1,7 @@
 #lang racket
 
 (require "tfield.rkt")
-(require racket/date
+(require srfi/19 ;racket/date
          xml)
 
 #|
@@ -343,17 +343,67 @@
 
 
 
-;; saved-files-xml : tfield [boolean #f] -> xexpr
-(define (saved-files-xml tf [loose-match #f])
-  (define sfs (saved-files-for tf loose-match))
-  `(filelist
-    ,@(map (λ(fn) 
-             (define ts (timestamp/tfield-file fn))
-             `(savefile ([name ,fn]
-                         [timestamp ,(number->string ts)]
-                         [datestring ,(date->string (seconds->date ts) #t)]) "")
-             )
-           (saved-files-for tf loose-match))))
+; saved-files-xml : tfield boolean [boolean #f] -> xexpr
+; if not bunched:
+;    (filelist (savefile ([name ...] [timestamp ...] [datestring ...]) "") ...)
+; if bunched:
+;    (filelist (group ([datestring ...]) 
+;                (savefile ([name ...] [timestamp ...] [datestring ...]
+;                           [timestring ...]) "") ...) ...)
+; in either case, may also include [usersaved "true"] attribute if so
+;
+; the groups are in chronological order
+(define (saved-files-xml tf loose-match [bunched? #f])
+  (define sfs (sort (saved-files-for tf loose-match) string<?))
+  (define day-of
+    (compose date-year-day time-utc->date 
+             (curry make-time time-utc 0) timestamp/tfield-file))
+
+  (define groups
+     (reverse
+      (map reverse
+           (foldl (λ(fn grps) 
+                    (cond [(empty? grps) (list (list fn))]
+                          [(= (day-of fn) (day-of (first (first grps))))
+                           (cons (cons fn (first grps)) (rest grps))]
+                          [else (cons (list fn) grps)]))
+                  '() sfs))))
+  
+  (if bunched?
+      ;;; bunched...
+      `(filelist ,@(map 
+         (λ(grp) 
+           (define ts (timestamp/tfield-file (first grp)))
+           `(group ([datestring ,(format-seconds ts "~A, ~B ~e, ~Y")])
+                   ,@(map (λ(fn)
+                            (define ts (timestamp/tfield-file fn))
+                            `(savefile ([name ,fn]
+                                        [timestamp ,(number->string ts)]
+                                        ,@(if (user-saved?/tfield-file fn)
+                                              '([usersaved "true"]) '())
+                                        [datestring
+                                         ,(format-seconds ts "~A, ~B ~e, ~Y ~r")]
+                                        [timestring
+                                         ,(format-seconds ts "~r")]) ""))
+                          grp))) groups))
+      
+      ;;; not bunched...
+      `(filelist
+        ,@(map (λ(fn) 
+                 (define ts (timestamp/tfield-file fn))
+                 `(savefile ([name ,fn]
+                             [timestamp ,(number->string ts)]
+                             ,@(if (user-saved?/tfield-file fn)
+                                              '([usersaved "true"]) '())
+                             [datestring 
+                              ,(format-seconds ts "~A, ~B ~e, ~Y ~r")]) ""))
+                 ;,(date->string (seconds->date ts) #t)]) "")
+               sfs))))
+
+
+; format-seconds : exact-int format-string -> string
+(define (format-seconds secs fs)
+  (date->string (time-utc->date (make-time time-utc 0 secs)) fs))
 
 
 ;;==============================================================================
@@ -384,7 +434,7 @@
  (load-tfield (-> tfield? path-string? (or/c #f tfield?)))
  
  (saved-files-for (->* (tfield?) (boolean?) (listof string?)))
- (saved-files-xml (->* (tfield?) (boolean?) xexpr?))
+ (saved-files-xml (->* (tfield? boolean?) (boolean?) xexpr?))
  (timestamp/tfield-file (-> string? natural-number/c))
  (user-saved?/tfield-file (-> string? boolean?))
  (hash-of/tfield-file (-> string? natural-number/c))

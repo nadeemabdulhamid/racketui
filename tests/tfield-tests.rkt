@@ -5,7 +5,7 @@
          rackunit/text-ui
          "../tfield.rkt")  
 
-
+;; TODO: tests for (clear) are lacking...
 
 (define misc-tests
   (test-suite
@@ -14,12 +14,22 @@
    (let ()
      ; gen-new-name and reset-name-counter
      (reset-name-counter 0)
-     (check-equal? (gen-new-name) "tfield0")
-     (check-equal? (gen-new-name) "tfield1")
+     (check-equal? (gen-new-name) "tfield-0")
+     (check-equal? (gen-new-name) "tfield-1")
      (reset-name-counter 12)
-     (check-equal? (gen-new-name) "tfield12")
-     (check-equal? (gen-new-name) "tfield13")
+     (check-equal? (gen-new-name) "tfield-12")
+     (check-equal? (gen-new-name) "tfield-13")
      
+     (check-equal? (depth-of "tfield-13") 1)
+     (check-equal? (depth-of "tfield-13-1-2") 3)
+     (check-equal? (depth-of 
+                    (new-tfield/number "lab3" 4 #:name "tfield-14-2-3-1"))
+                   4)
+     
+     (check-equal? (move-to '(a b c d e f g) 2 6) '(a b d e f g c))
+     (check-equal? (move-to '(a b c d e f g) 4 1) '(a e b c d f g))
+     (check-equal? (move-to '(a b c) 0 2) '(b c a))
+     (check-equal? (move-to '(a b c) 2 0) '(c a b))
      )))
 
 
@@ -28,13 +38,13 @@
    "Constructor Tests"
    (let ()
      (reset-name-counter 0)
-     (check-equal? (new-tfield "a label") (tfield "a label" "tfield0" #f))
+     (check-equal? (new-tfield "a label") (tfield "a label" "tfield-0" #f))
      (check-equal? (new-tfield "a label" #:name "tf1" #:error '(b "wrong"))
                    (tfield "a label" "tf1" '(b "wrong")))
      (check-equal? (new-tfield/number "lab3" 5)
-                   (tfield/number "lab3" "tfield1" #f 5 #f))
+                   (tfield/number "lab3" "tfield-1" #f 5 #f))
      (check-equal? (new-tfield/string "lab4" "v" #t #:error '(b "wrong"))
-                   (tfield/string "lab4" "tfield2" '(b "wrong") "v" #t))
+                   (tfield/string "lab4" "tfield-2" '(b "wrong") "v" #t))
      (check-equal? (new-tfield/boolean "lab5" #:name "hi")
                    (tfield/boolean "lab5" "hi" #f #f))
      (check-equal? (new-tfield/struct "entry" entry 
@@ -75,7 +85,7 @@
 (define tfield/base-tests
   (test-suite
    "Tests for tfield"
-   (let ([tf1 (tfield "a label" "tfield0" #f)]
+   (let ([tf1 (tfield "a label" "tfield-0" #f)]
          )
      ; filled?
      (check-exn exn:fail? (λ() (filled? tf1)))
@@ -705,7 +715,7 @@
           [ts1 (new-tfield/string "a string" #f #t #:name "b")]
           [tl1 (new-tfield/listof "numbers" tn1 #:name "c")]
           
-          [tc1 (new-tfield/const "failure" #f)]
+          [tc1 (new-tfield/const "failure" #f #:name "k")]
           [te1 (new-tfield/struct "entry" entry (list tn1 ts1) #:name "i")]
           
           [to1 (new-tfield/oneof "#f or string" (list tc1 te1) #:name "d")]
@@ -731,6 +741,19 @@
      (check-equal? (find-named tf1 "zz") #f)
      (check-equal? (find-named tf1 "c") tl1)
      (check-equal? (find-named tf1 "a") tn1)
+     
+     (check-equal? (find-parent-of-named tn1 "a") #f)
+     (check-equal? (find-parent-of-named tc1 "b") #f)
+     (check-equal? (find-parent-of-named te1 "a") te1)
+     (check-equal? (find-parent-of-named te1 "z") #f)
+     (check-equal? (find-parent-of-named to1 "a") te1)
+     (check-equal? (find-parent-of-named to1 "z") #f)
+     (check-equal? (find-parent-of-named to1 "k") to1)
+     (check-equal? (find-parent-of-named tf1 "a") te1)
+     (check-equal? (find-parent-of-named tf1 "z") #f)
+     (check-equal? (find-parent-of-named tf1 "k") to1)
+     (check-equal? (find-parent-of-named tf1 "g") #f)
+     (check-equal? (find-parent-of-named tf1 "d") tf1)
 
      )))
 

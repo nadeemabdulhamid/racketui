@@ -5,8 +5,13 @@
          rackunit/gui
          rackunit/text-ui
          "../tfield.rkt"
-         "../tfield-syntax.rkt"
-         "../tfield-save.rkt")
+         "../syntax.rkt"
+         "../save.rkt")
+
+
+;; TODO: some of the tests below are a bit bogus, because the list of 
+;;   saved files for a particular tfield might be empty, so the test
+;;   (e.g. saved-files-xml) trivially passes
 
 
 (struct cartpt (x y) #:transparent)
@@ -205,7 +210,7 @@
      (check-equal? (user-saved?/tfield-file "124324-45452-0-345252.sav") #f)
      (check-equal? (hash-of/tfield-file "124324-45452-0-345252.sav") 45452)
      
-     (check-equal? (saved-files-xml tf1/p)
+     (check-equal? (saved-files-xml tf1/p #f)
                    `(filelist
                      ;(savefile ([name "1309008325-7149278-0-13090083251309008325732.sav"]
                      ;           [timestamp "1309008325"]
