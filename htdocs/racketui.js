@@ -48,14 +48,19 @@ function onPageLoad() {
 	$("#apply-input-button").button({icons: {primary: "ui-icon-lightbulb"}});
 
 	// button handlers	
+	$("#apply-input-button").click(function() { $.get(CONT_URL, addFormData({ requesttype: "apply-input" })) });
 	$("#clear-input-button").click(function() { $.get(CONT_URL, { requesttype: "clear-input" }) });
 	$("#save-input-button").click(function() { $.get(CONT_URL, addFormData({ requesttype: "save-input" })) });
-	
+	$("#edit-again-button").click(function() { resultTabState(true, 1); });
+	$("#load-save-edit").click(function() { $.get(CONT_URL, { requesttype: "load-saved-edit", name: sel.val() }) });
+	$("#load-save-apply").click(function() { $.get(CONT_URL, { requesttype: "load-saved-apply", name: sel.val() }) });
+
+
 	// save tab stuff
 	$("#loosematch").change(populateSaved);
 	$("#usersaveonly").change(populateSaved);
 	var sel = $("#history-select");
-	sel.change(function() { $.get(CONT_URL, { requesttype: "preview-saved", name: sel.val(), conturl: CONT_URL }) });
+	sel.change(function() { $.get(CONT_URL, { requesttype: "preview-saved", name: sel.val() }) });
 	$("#select-save-prev").click(function() {
 		goPreviousSaved();
 		return false;
@@ -91,8 +96,14 @@ function goNextSaved() {
 	sel.change();  // update preview
 }
 
-function enableResultsTab(disableIt) {
-	$("#tabs").tabs( 'option', 'disabled', (disableIt?[2]:[]) );
+function resultTabState(enabled, selectOther) {
+	$("#tabs").tabs( 'option', 'disabled', (enabled?[]:[2]) );
+	if (selectOther) 
+		$("#tabs").tabs( 'option', 'selected', selectOther );
+	else if (enabled) 
+		$("#tabs").tabs( 'option', 'selected', 2 );
+	else // if disabled, other select not specified, move to 1
+		$("#tabs").tabs( 'option', 'selected', 1 );
 }
 
 function refreshElements(parentSelector) {
@@ -125,7 +136,7 @@ function refreshElements(parentSelector) {
 /* adds serialized parameters from the form to the given
    object */
 function addFormData(obj) {
-	return $.extend({}, obj, $("#edit > form").serializeJSON(), { conturl: CONT_URL });
+	return $.extend({}, obj, $("#edit > form").serializeJSON());
 }
 
 /* when a select is changed */

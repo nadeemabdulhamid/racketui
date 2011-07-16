@@ -5,6 +5,8 @@
          web-server/servlet-env
          xml)
 
+(define DEBUG #f)
+
 ;; ============================================================================
 
 
@@ -41,9 +43,11 @@
 ; again be handled by this same procedure
 
 (define ((req-handler tf) req)
-  ;(printf "BINDINGS:\n~a\n" (req/bindings->string req))
-  ;(printf "TFIELD:\n") 
-  ;(pretty-print (map tfield->value (tfield/function-args tf)))(newline)
+  (when DEBUG
+    (printf "BINDINGS:\n~a\n" (req/bindings->string req))
+    (when (andmap filled? (tfield/function-args tf))
+      (printf "TFIELD:\n") 
+      (pretty-print (map tfield->value (tfield/function-args tf)))(newline)))
   
   (define event (parse-event req))
   (define new-tf (event-dispatch tf event))
@@ -51,12 +55,15 @@
   (define next-req
     (send/suspend
      (λ(cont-url) 
-       ;(printf "TFIELD after:\n")
-       ;(pretty-print (map tfield->value (tfield/function-args new-tf)))(newline)
+       (when DEBUG
+         (when (andmap filled? (tfield/function-args new-tf))
+           (printf "TFIELD after:\n")
+           (pretty-print (map tfield->value (tfield/function-args new-tf)))(newline)))
        
        (define resp-xexpr  (ajax-response new-tf event cont-url))
-       ;(printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
-       ;(printf "***********************************")(newline)
+       (when DEBUG
+         (printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
+         (printf "***********************************")(newline))
 
        (response/xexpr resp-xexpr 
                        #:mime-type resp-type))))
@@ -87,6 +94,7 @@
 ; Event structure
 ; Event types (with options/parameters) are:
 ;    - 'refresh
+;    - 'apply-input
 ;    - 'save-input   
 ;    - 'clear-input
 ;    - 'listof-reorder [name : string] [from, to : number]
@@ -137,6 +145,20 @@
     
     ['clear-input 
      (clear tf)]
+    
+    ['apply-input 
+     (define parsed-tf (parse tf lookup-func #t))
+     (define new-tf (or (apply-tfield/function parsed-tf) parsed-tf))
+     (save-tfield new-tf)
+     new-tf]
+    
+    ['load-saved-edit
+     (define loaded-tf (load-tfield tf (event-binding ev "name")))
+     (or loaded-tf (clear tf))]
+    
+    ['load-saved-apply
+     (define loaded-tf (load-tfield tf (event-binding ev "name")))
+     (if (not loaded-tf) (clear tf) (validate loaded-tf))]
     
     ['save-input
      (define parsed-tf (parse tf lookup-func #f))
@@ -217,29 +239,46 @@
 ; note: to update cont-url, include: (a ([id "cont-url"] [href ,cont-url]) "")
 
 (define (ajax-response tf ev cont-url)
-  (define cont-url-update `(eval "CONT_URL = '" ,cont-url "';"))
-  (define (refresh-elts parentSelector)
+  (define error (tfield-error tf))
+  (define args (tfield/function-args tf))
+  (define result (tfield/function-result tf))
+  
+  (define cont-url-update/xexpr `(eval "CONT_URL = '" ,cont-url "';"))
+  (define (refresh-elts/xexpr parentSelector)
     `(eval "refreshElements('" ,parentSelector "');"))
+  (define (full-refresh/xexpr [additional '()])
+    `(taconite
+       (html ([select "#form-error"] ,@(if (not error) `((arg1 "")) `()))
+             ,(or error ""))
+       (html ([select "#edit-args"])
+             (ul ,@(map (λ(x) `(li ,x)) (render*/edit args #f))))
+       (html ([select "#program-output"])
+             ,(if (filled? tf) (render/disp result #f) ""))
+       (html ([select "#program-input"])
+             ,(if (filled? tf)
+                  `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f)))
+                  ""))
+       ,cont-url-update/xexpr 
+       (eval "populateSaved();")
+       ,(refresh-elts/xexpr "form")
+       ,@additional))
   
   (match (event-type ev)
 
     ; some events require complete refresh of all elements
     [(or 'refresh 'clear-input 'save-input)
-     (define error (tfield-error tf))
-     (define args (tfield/function-args tf))
-     (define result (tfield/function-result tf))
-     `(taconite
-       (html ([select "#form-error"])
-             ,(if error `(div ([id "formerror"]) ,error) ""))
-       (html ([select "#edit-args"])
-             (ul ,@(map (λ(x) `(li ,x)) (render*/edit args #f))))
-       (html ([select "#program-output"])
-             ,(if (filled? tf) "output" ""))
-       (html ([select "#program-input"])
-             ,(if (filled? tf) "input" ""))
-       ,cont-url-update 
-       (eval "populateSaved();")
-       ,(refresh-elts "form"))]
+     (full-refresh/xexpr
+      (if (filled? tf) `() `((eval "resultTabState(false);"))))]
+    
+    ['load-saved-edit
+     (full-refresh/xexpr `((eval "resultTabState(false, 1);")))]
+
+    ; attempt to switch to results tab upon application
+    [(or 'apply-input 'load-saved-apply)
+     (full-refresh/xexpr
+      (list (if (filled? tf) 
+                `(eval "resultTabState(true);") 
+                `(eval "resultTabState(false);"))))]
     
     ; a number of events just need to replace the updated outer <div>
     ; as a response...
@@ -249,8 +288,8 @@
      `(taconite
        (replaceWith ([select ,divname])
           ,(render/edit (find-named tf name) (find-parent-of-named tf name)))
-       ,cont-url-update 
-       ,(refresh-elts divname))]
+       ,cont-url-update/xexpr 
+       ,(refresh-elts/xexpr divname))]
     
     ['listof-add
      (define name (event-binding ev "name"))
@@ -264,8 +303,8 @@
                       (take-right elts num-added)))
        (val ([select ,(format "#edit-args #~a" name)] 
                [arg1 ,(number->string (length elts))]))
-       ,cont-url-update 
-       ,(refresh-elts
+       ,cont-url-update/xexpr 
+       ,(refresh-elts/xexpr
          (if (zero? old-count) 
            (format "#edit-args #~a-ol > li:not(.nosort)" name)
            (format "#edit-args #~a-ol > li:not(.nosort):gt(~a)" name (- old-count 1)))))]
@@ -283,7 +322,7 @@
              ,(if args
                  `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f)))
                  `(div "No data")))
-       ,cont-url-update)]
+       ,cont-url-update/xexpr)]
     
     [_ `(empty-response)]))
 

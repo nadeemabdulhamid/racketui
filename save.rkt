@@ -180,7 +180,8 @@
 
 ;; unify-data-expr/tfield : tf data-expr -> tf
 
-(define (unify-data-expr/tfield tf de)
+(define (unify-data-expr/tfield otf de)
+  (define tf (clear otf))
   (match tf
     [(tfield/const label name errors value)
      tf]

@@ -258,4 +258,5 @@
          render/edit
          render-listof-item/edit
          
-         render*/disp)
+         render*/disp 
+         render/disp)
