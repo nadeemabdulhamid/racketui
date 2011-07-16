@@ -10,6 +10,12 @@
 ;; ============================================================================
 
 
+;; handles expired/invalid continuations 
+(define (expiration-handler req)
+  (response/full 404 #"File not found" (current-seconds)
+                 TEXT/HTML-MIME-TYPE empty (list #"File not found")))
+
+
 ; start : tfield/function -> (request -> response)
 ; produces a response for the initial page load, based on the 
 ; given tfield (which must be a tfield/function object). 
@@ -21,15 +27,19 @@
     (error 'start (string-append "cannot start web application with a specifi"
                                  "cation for a type other than a function")))
   
-  (define next-req
-    (send/suspend
-     (λ(cont-url)
-       (response/full
-        200 #"Okay" (current-seconds) TEXT/HTML-MIME-TYPE 
-        (list (header #"Cache-Control" #"no-cache"))
-        (list (string->bytes/utf-8 
-               (render-full/string tf cont-url)))))))
-  ((req-handler tf) next-req))
+  (cond [(bindings-assq            ; this isn't the very first invocation?
+          (string->bytes/utf-8 "requesttype") (request-bindings/raw req))
+         ((req-handler tf) req)]
+        [else
+         (define next-req
+           (send/suspend
+            (λ(cont-url)
+              (response/full
+               200 #"Okay" (current-seconds) TEXT/HTML-MIME-TYPE 
+               (list (header #"Cache-Control" #"no-cache"))
+               (list (string->bytes/utf-8 
+                      (render-full/string tf cont-url)))))))
+         ((req-handler tf) next-req)]))
 
 
 
@@ -49,25 +59,30 @@
       (printf "TFIELD:\n") 
       (pretty-print (map tfield->value (tfield/function-args tf)))(newline)))
   
-  (define event (parse-event req))
-  (define new-tf (event-dispatch tf event))
-  (define resp-type (response-type event))  ; "text/xml" or "text/html"
-  (define next-req
-    (send/suspend
-     (λ(cont-url) 
-       (when DEBUG
-         (when (andmap filled? (tfield/function-args new-tf))
-           (printf "TFIELD after:\n")
-           (pretty-print (map tfield->value (tfield/function-args new-tf)))(newline)))
-       
-       (define resp-xexpr  (ajax-response new-tf event cont-url))
-       (when DEBUG
-         (printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
-         (printf "***********************************")(newline))
-
-       (response/xexpr resp-xexpr 
-                       #:mime-type resp-type))))
-  ((req-handler new-tf) next-req))
+  (with-handlers
+      ([exn:fail? (λ(exn) ((error-display-handler) (exn-message exn) exn)
+                    (expiration-handler req))])
+    (define event (parse-event req))
+    (define new-tf (event-dispatch tf event))
+    (define resp-type (response-type event))  ; "text/xml" or "text/html"
+    (define next-req
+      (send/suspend
+       (λ(cont-url) 
+         (when DEBUG
+           (when (andmap filled? (tfield/function-args new-tf))
+             (printf "TFIELD after:\n")
+             (pretty-print (map tfield->value 
+                                (tfield/function-args new-tf)))(newline)))
+         
+         (define resp-xexpr  (ajax-response new-tf event cont-url))
+         (when DEBUG
+           (printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
+           (printf "***********************************")(newline))
+         
+         (response/xexpr resp-xexpr 
+                         #:mime-type resp-type))))
+    
+    ((req-handler new-tf) next-req)))
 
 
 
@@ -86,6 +101,18 @@
   ;(pretty-print (map (λ(b) (list (binding-id b) (binding:form-value b)))
   ;                   (request-bindings/raw req)))
   (bytes->string/utf-8 (get-output-bytes p)))
+
+
+; crunch : string -> string
+; removes all non-alphanumeric characters from string and converts to
+;  lowercase
+
+(define (crunch str)
+  (list->string (filter (λ(c) (or (char-alphabetic? c)
+                                  (char-numeric? c)))
+                        (string->list (string-downcase str)))))
+
+
 
 
 ;; ============================================================================
@@ -117,7 +144,7 @@
   (define b (event-binding e key))
   (and (string? b) (string->number b)))
 
-; parse-event : request -> event
+; parse-event : request -> event or #f
 ; event type is extract from "requesttype" binding of the request
 
 (define (parse-event req)
@@ -337,4 +364,6 @@
 
 ;; ============================================================================
 
-(provide start)
+(provide start
+         expiration-handler
+         crunch)

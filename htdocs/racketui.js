@@ -10,7 +10,7 @@ return json;
 };
 })( jQuery );
 
-
+var BASE_URL = window.location.pathname;
 
 /**************************************************************/
 /* initialization upon load */
@@ -27,7 +27,7 @@ $(function() {
 		refreshFields()
 	).then( $.unblockUI );
 	
-	$.taconite.debug = true; 
+	//$.taconite.debug = true; 
 });
 
 
@@ -48,33 +48,65 @@ function onPageLoad() {
 	$("#apply-input-button").button({icons: {primary: "ui-icon-lightbulb"}});
 
 	// button handlers	
-	$("#apply-input-button").click(function() { $.get(CONT_URL, addFormData({ requesttype: "apply-input" })) });
-	$("#clear-input-button").click(function() { $.get(CONT_URL, { requesttype: "clear-input" }) });
-	$("#save-input-button").click(function() { $.get(CONT_URL, addFormData({ requesttype: "save-input" })) });
-	$("#edit-again-button").click(function() { resultTabState(true, 1); });
-	$("#load-save-edit").click(function() { $.get(CONT_URL, { requesttype: "load-saved-edit", name: sel.val() }) });
-	$("#load-save-apply").click(function() { $.get(CONT_URL, { requesttype: "load-saved-apply", name: sel.val() }) });
-
+	$("#apply-input-button").click(makeRequestFunc("apply-input", true));
+	$("#clear-input-button").click(makeRequestFunc("clear-input", true));
+	$("#save-input-button").click(makeRequestFunc("save-input", true));
+	$("#edit-again-button").click(function() { resultTabState(false, 1); });
 
 	// save tab stuff
+	var selvalfunc = function() {return {name: $("#history-select").val()}};
+	$("#history-select").change(makeRequestFunc("preview-saved", selvalfunc, false));
+	$("#load-save-edit").click(makeRequestFunc("load-saved-edit", selvalfunc, false));
+	$("#load-save-apply").click(makeRequestFunc("load-saved-apply", selvalfunc, false));
 	$("#loosematch").change(populateSaved);
 	$("#usersaveonly").change(populateSaved);
-	var sel = $("#history-select");
-	sel.change(function() { $.get(CONT_URL, { requesttype: "preview-saved", name: sel.val() }) });
-	$("#select-save-prev").click(function() {
-		goPreviousSaved();
-		return false;
-	});
-	$("#select-save-next").click(function() {
-		goNextSaved();
-		return false;
-	});
+	$("#select-save-prev").click(function() { goPreviousSaved(); return false; });
+	$("#select-save-next").click(function() { goNextSaved(); return false; });
 	$("#saved").keydown(function (event) {
 		if (event.keyCode == 39) { goNextSaved(); }
 		else if (event.keyCode == 37) { goPreviousSaved(); }
 	});
 
 }
+
+/* type : string, params : object, sendFormData : boolean */
+function makeRequest( type, params, sendFormData ) {
+	return makeRequestFunc(type, params, sendFormData)();
+}
+
+function makeRequestFunc( type, params, sendFormData ) {
+	return function() {
+		//console.log("request: " + type + " conturl: " + CONT_URL);
+		if (sendFormData == undefined) { 
+			if (params == true || params == false) {
+				sendFormData = params; params = {}; 
+			} else {
+				sendFormData = true;
+			}
+		}
+		var thedata = $.extend({ requesttype: type, conturl: CONT_URL }, 
+							   (typeof params == 'function' ? params() : params));
+		if (sendFormData) thedata = addFormData(thedata);
+		return $.ajax({url: CONT_URL, 
+					   data: thedata,
+					   error: ajaxErrorHandler
+					   }); 
+	};
+}
+
+/* for attempting to restart entire application in case of 
+   AJAX error */
+function ajaxErrorHandler(jqXHR, textStatus, errorThrown) {
+	if (textStatus == 'error' && errorThrown == 'File not found') {
+		CONT_URL = BASE_URL;
+		$.blockUI({ message: $("#reloadMessage") });
+		$.when(
+			startupDelay(),
+			refreshFields()
+		).then( $.unblockUI );
+	}
+}	
+		    
 
 function goPreviousSaved() {
 	var sel = $("#history-select");
@@ -97,13 +129,16 @@ function goNextSaved() {
 }
 
 function resultTabState(enabled, selectOther) {
-	$("#tabs").tabs( 'option', 'disabled', (enabled?[]:[2]) );
+	$("#tabs").tabs( 'option', 'disabled', [] );
 	if (selectOther) 
 		$("#tabs").tabs( 'option', 'selected', selectOther );
 	else if (enabled) 
 		$("#tabs").tabs( 'option', 'selected', 2 );
 	else // if disabled, other select not specified, move to 1
 		$("#tabs").tabs( 'option', 'selected', 1 );
+
+	if (!enabled)
+		$("#tabs").tabs( 'option', 'disabled', [2] );
 }
 
 function refreshElements(parentSelector) {
@@ -142,16 +177,20 @@ function addFormData(obj) {
 /* when a select is changed */
 function onSelectOneOf(ev) {
 	var sel = $(this);
+	makeRequest("oneof-change", { name: sel.attr('id'),
+								  chosen: sel.val() });
+	/*
 	$.get(CONT_URL, addFormData({ requesttype: "oneof-change",
 									name: sel.attr('id'),
-									chosen: sel.val() }));
+									chosen: sel.val() })); */
 }
 
 /* when a list's "add ..." button is clicked */
 function addToList(ev) {
 	var btn = $(this); // $(ev.target).closest("button");
 	var listname = dropSuffix(btn.attr('id'));
-	$.get(CONT_URL, addFormData({ requesttype: "listof-add", name: listname }));
+	makeRequest("listof-add", { name: listname });
+	//$.get(CONT_URL, addFormData({ requesttype: "listof-add", name: listname }));
 }
 
 /* when delete button is clicked for an item */
@@ -159,8 +198,8 @@ function deleteFromList(ev) {
 	var btn = $(this);
 	var listname = dropSuffix(btn.closest('ol').attr('id'));
 	var index = extractLastIndex(btn.attr('id'));
-	$.get(CONT_URL, addFormData({ requesttype: "listof-delete", 
-									name: listname, item: index }));
+//	$.get(CONT_URL, addFormData({ requesttype: "listof-delete", 
+	makeRequest("listof-delete", { name: listname, item: index });
 }
 
 /* when a list item is dragged to another position */
@@ -186,9 +225,11 @@ function reorderList(event, ui) {
 		}
 		//console.log(thename +": swap " + itemidx + " and " + newitemidx);
 
+		makeRequest("listof-reorder", {name:thename, from:itemidx, to:newitemidx});
+		/*
 		var reqdata = { requesttype: "listof-reorder", name: thename,
 						from: itemidx, to: newitemidx };
-		$.get(CONT_URL, addFormData(reqdata));
+		$.get(CONT_URL, addFormData(reqdata));*/
 	}
 }
 
@@ -282,7 +323,8 @@ function extractPrefix(str) {
    and display elements with value of the program's input
    and output data, as appropriate */
 function refreshFields(switchToResultTab) {
-	$.get(CONT_URL, { requesttype: "refresh", conturl: CONT_URL });
+	makeRequest("refresh");
+	//$.get(CONT_URL, { requesttype: "refresh", conturl: CONT_URL });
 	// response calls refreshElements() and populateSaved()
 	//  through taconite eval
 }
@@ -302,6 +344,7 @@ function populateSaved() {
 	return $.ajax({
 		url: CONT_URL,
 		data: $.extend({conturl: CONT_URL}, params),
+		error: ajaxErrorHandler,
 		success: function(data) {
 			sel.empty();   // clear all current stuff
 			updateContUrl(data);

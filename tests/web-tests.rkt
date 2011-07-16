@@ -3,17 +3,22 @@
 (require "../tfield.rkt"
          "../save.rkt"
          "../syntax.rkt"
-         "../web.rkt")
+         "../web.rkt"
+         "../web-launch.rkt")
 (require racket/runtime-path
          web-server/servlet
          web-server/servlet-env
          web-server/managers/lru)
 (require (only-in lang/htdp-beginner string-upper-case? string-ith))
+(require rackunit)
 
 
 (define-runtime-path htdocs "../htdocs")
 
+;; ============================================================================
 
+(check-equal? (crunch "Acronym Builder'z!!!!") "acronymbuilderz")
+(check-equal? (crunch "@%^*( $%#!!!!") "")
 
 ;; ============================================================================
 
@@ -67,7 +72,7 @@
                               [else 1])) alog)))
   (/ (sum alog) (how-many-count alog)))
 
-(equal? (average `(90 () "sick" ,(make-retake 45 88) 85)) (/ (+ 90 85 88) 4))
+(check-equal? (average `(90 () "sick" ,(make-retake 45 88) 85)) (/ (+ 90 85 88) 4))
 
 (define accugrade/tf (value->tfield 
                  ((parse/web-spec
@@ -89,7 +94,15 @@
 
 ;; ============================================================================
 
-(go acro/tf)
+;(go acro/tf)
 ;(go accugrade/tf)
+
+(web-launch "Acronym Builder"
+            (function 
+             "Produces an acronym of the capitalized words in the given list."
+             (acronym ["Words" (listof+ ["Word" string+])]
+                      -> ["The acronym" string])))
+
+
 
 

@@ -512,6 +512,7 @@
 ;  with tfield->value or when the function is actually applied)
 
 (define ERRMSG/NOT-FILLED "Must be filled in")
+(define ERRMSG/NOT-EMPTY "Cannot be empty")
 (define ERRMSG/NOT-NUMBER "Should be a number")
 (define ERRMSG/MISSING-INPUT "Not all required input has been entered")
 (define ERRMSG/SELECT-OPTION "Must select an option")
@@ -640,7 +641,7 @@
      
      (tfield/listof label name 
                     (if (and non-empty? (empty? new-elts/parsed))
-                        ERRMSG/NOT-FILLED #f)
+                        ERRMSG/NOT-EMPTY #f)
                        base new-elts/parsed non-empty?)]
     
     ;; ---- TFIELD/FUNCTION
