@@ -6,6 +6,7 @@
          "../tfield.rkt")  
 
 ;; TODO: tests for (clear) are lacking...
+;; TODO: tests exercising tfield/listof with  non-empty?
 
 (define misc-tests
   (test-suite
@@ -78,7 +79,7 @@
                                       (new-tfield/number "num" #:name "e")
                                       #:name "f")
                    (tfield/listof "numbers" "f" #f 
-                                  (tfield/number "num" "e" #f #f #f) empty))
+                                  (tfield/number "num" "e" #f #f #f) empty #f))
      )))
 
 

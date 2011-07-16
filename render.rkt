@@ -104,7 +104,7 @@
 ; render-listof : tfield/listof (or #f tfield) -> xexpr
 (define (render-listof/edit tf parent)
   (match tf
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      ((div-wrapper name `(tfield tfield-listof))
       `(fieldset ([class ,(nest-level tf)])
          (legend ,label)
@@ -228,7 +228,8 @@
                         (or (and value (symbol->string value)) "-"))]
     [(tfield/string label name error value non-empty?)
      (render-basic/disp name '(tfield-string) (and parent-not-listof? label)
-                        (or value "-"))]
+                        (if (equal? value "") "-"
+                            (or value "-")))]
     [(tfield/struct label name error constr args)
      ((div-wrapper name '(tfield tfield-structure))
       `(fieldset (legend ,label ": ")
@@ -242,10 +243,12 @@
        [else 
         ((div-wrapper name `(tfield tfield-oneof))
          (render/disp selected-tf tf))])]
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      ((div-wrapper name `(tfield tfield-listof))
       `(fieldset (legend ,label ": ")
-                 (ol ,@(map (λ(a) `(li ,a)) (render*/disp elts tf)))))]
+                 ,(if (empty? elts) 
+                      "(empty)"
+                      `(ol ,@(map (λ(a) `(li ,a)) (render*/disp elts tf))))))]
     [(tfield/function title name error text func args result)
      `(span ([id ,name]) "")]
     [_ (error (object-name render/disp)

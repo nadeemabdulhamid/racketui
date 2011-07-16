@@ -32,7 +32,7 @@
                    (web-spec 
                     (function 
                      "Produces an acronym of the capitalized words in the given list."
-                     (acronym ["Words" (listof ["Word" string+])]
+                     (acronym ["Words" (listof+ ["Word" string+])]
                               -> ["The acronym" string]))))
                   "Acronym Builder")
                  '(("United" "States" "of"))))

@@ -300,7 +300,7 @@
                                       #:name "i"))
      
      (check-equal? (unify-data-expr/tfield to1 '(oneof 0 #f))
-                   (new-tfield/oneof "#f or entry" (list tc1 te1) 0 #:name "d"))
+                   (new-tfield/oneof "#f or entry" (list tc1 (clear te1)) 0 #:name "d"))
      (check-equal? (unify-data-expr/tfield to1 '(oneof 1 (structure 45 "hi")))
                    (new-tfield/oneof "#f or entry" 
                                      (list tc1 (value->tfield te1 (entry 45 "hi")))
@@ -311,16 +311,16 @@
      (check-equal? (unify-data-expr/tfield tl1 5)
                    (new-tfield/listof "numbers" (clear tn1) #:name "c"))
      (check-equal? (unify-data-expr/tfield tl1 '(listof 5 6 7 8))
-                   (new-tfield/listof "numbers" tn1
+                   (new-tfield/listof "numbers" (clear tn1)
                                       (rename/deep* (map (curry value->tfield tn1) '(5 6 7 8))
                                                     "c")
                                       #:name "c"))
      (check-equal? (unify-data-expr/tfield tl1 '(listof ))
-                   tl1)
+                   (clear tl1))
      
      (check-equal? (tfield/function-args
                     (unify-data-expr/tfield tf1 '(function (listof 3 2 1) "hello")))
-                   (list (new-tfield/listof "numbers" tn1
+                   (list (new-tfield/listof "numbers" (clear tn1)
                                             (list 
                                              (new-tfield/number "a number" 3 "3" #:name "c-0")
                                              (new-tfield/number "a number" 2 "2" #:name "c-1")

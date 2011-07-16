@@ -117,7 +117,7 @@
                  ,(map (λ(f) (tfield->skel-expr f func-names?)) args))]
     [(tfield/oneof label name errors options chosen)
      `(oneof ,@(map (λ(f) (tfield->skel-expr f func-names?)) options))]
-    [(tfield/listof label name errors base elts)
+    [(tfield/listof label name errors base elts non-empty?)
      `(listof ,(tfield->skel-expr base func-names?))]
     [(tfield/function title name errors text func args result)
      `(function ,@(if func-names? (list (object-name func)) empty)
@@ -171,7 +171,7 @@
      (list 'oneof
            (and (number? chosen) (< chosen (length options)) chosen)
            (and chosen (tfield->data-expr (list-ref options chosen))))]
-    [(tfield/listof label name errors base elts)
+    [(tfield/listof label name errors base elts non-empty?)
      (cons 'listof (map tfield->data-expr elts))]
     [(tfield/function title name errors text func args result)
      (cons 'function (map tfield->data-expr args))]
@@ -211,7 +211,7 @@
                 )
            (struct-copy tfield/oneof tf [chosen cho] [options new-ops]))
          (clear tf))]
-    [(tfield/listof label name errors base elts)
+    [(tfield/listof label name errors base elts non-empty?)
      (if (and (cons? de) (equal? 'listof (first de)))
          (struct-copy tfield/listof tf
                       [elts (rename/deep* (map (curry unify-data-expr/tfield base) (rest de))

@@ -200,7 +200,11 @@
   (define parsed-tf (parse tf lookup-func #f))
   (define new-elts (rename/deep* (proc (tfield/listof-elts parsed-tf))
                                  (tfield-name parsed-tf)))
-  (struct-copy tfield/listof parsed-tf [elts new-elts]))
+  (match parsed-tf 
+    [(tfield/listof label name error base elts non-empty?)
+     (tfield/listof label name #f base new-elts non-empty?)]))
+     ;(struct-copy tfield/listof parsed-tf [elts new-elts]
+     ;              [error #:parent tfield #f])
 
 
 ; reorder-listof : tfield/listof number number -> tfield/listof
@@ -282,7 +286,7 @@
     
     ; a number of events just need to replace the updated outer <div>
     ; as a response...
-    [(or 'listof-reorder 'listof-delete 'oneof-change)     
+    [(or 'listof-reorder 'listof-delete 'oneof-change 'listof-add)     
      (define name (event-binding ev "name"))
      (define divname (format "#edit-args #~a-div" name))
      `(taconite
@@ -291,7 +295,7 @@
        ,cont-url-update/xexpr 
        ,(refresh-elts/xexpr divname))]
     
-    ['listof-add
+    #|['listof-add
      (define name (event-binding ev "name"))
      (define tf/listof (find-named tf name))
      (define elts (tfield/listof-elts tf/listof))
@@ -307,7 +311,7 @@
        ,(refresh-elts/xexpr
          (if (zero? old-count) 
            (format "#edit-args #~a-ol > li:not(.nosort)" name)
-           (format "#edit-args #~a-ol > li:not(.nosort):gt(~a)" name (- old-count 1)))))]
+           (format "#edit-args #~a-ol > li:not(.nosort):gt(~a)" name (- old-count 1)))))]|#
        
     ['list-saved 
      (define loose-match? (equal? (event-binding ev "loosematch") "loosematch"))

@@ -28,12 +28,13 @@
              |  boolean
              |  string
              |  symbol
-             |  string+  ***** <-- TODO
+             |  string+
 
              |  (function <string> (<proc> <lab-spec> ... -> <lab-spec>))
              |  (structure <constr> <lab-spec> ...+)
              |  (oneof <lab-spec> ...+)
              |  (listof <lab-spec>)
+             |  (listof+ <lab-spec>)
 
              |  (check <pred> <string> <spec>)   ***** <-- TODO
 
@@ -54,7 +55,8 @@
   (define-syntax-class cmp-type  ; compound types (have to traverse sub-comps)
     (pattern (~and header
                    (~or (~datum constant) (~datum structure) (~datum check)
-                        (~datum oneof) (~datum listof) (~datum function)))))
+                        (~datum oneof) (~datum listof) (~datum listof+)
+                        (~datum function)))))
   
   (syntax-parse stx
                 ; these first two capture common error condition:
@@ -78,12 +80,14 @@
                    (~or (~datum number) (~datum boolean) (~datum string)
                         (~datum string+) (~datum symbol)
                         (~datum constant) (~datum structure) (~datum check)
-                        (~datum oneof) (~datum listof) (~datum function)))))
+                        (~datum oneof) (~datum listof) (~datum listof+)
+                        (~datum function)))))
   
   (define-syntax-class cmp-type
     (pattern (~and header
                    (~or (~datum constant) (~datum structure) (~datum check)
-                        (~datum oneof) (~datum listof) (~datum function)))))
+                        (~datum oneof) (~datum listof) (~datum listof+)
+                        (~datum function)))))
   
   (define-syntax-class lab-spec/sp
     #:attributes [output]
@@ -137,6 +141,8 @@
                  #`(list 'oneof x.output ...)]
                 [(web-spec ((~datum listof) ~! x:lab-spec/sp))
                  #'(list 'listof x.output)]
+                [(web-spec ((~datum listof+) ~! x:lab-spec/sp))
+                 #'(list 'listof+ x.output)]
                 
                 ; this is to allow substitution of define/web'd ids...
                 [(web-spec x:identifier) #'x] 
@@ -186,7 +192,9 @@
     [(list 'oneof ops ...)
      (λ(s) (new-tfield/oneof s (map parse/lab-spec ops)))]
     [(list 'listof t)
-     (λ(s) (new-tfield/listof s (parse/lab-spec t)))]))
+     (λ(s) (new-tfield/listof s (parse/lab-spec t)))]
+    [(list 'listof+ t)
+     (λ(s) (new-tfield/listof s (parse/lab-spec t) empty #t))]))
 
 
 

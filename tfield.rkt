@@ -46,7 +46,7 @@
 (struct tfield/symbol tfield (value) #:transparent)
 (struct tfield/struct tfield (constr args) #:transparent)
 (struct tfield/oneof tfield (options chosen) #:transparent)
-(struct tfield/listof tfield (base elts) #:transparent)
+(struct tfield/listof tfield (base elts non-empty?) #:transparent)
 (struct tfield/function tfield (text func args result) #:transparent)
 ;; label of the function to be used as page title/header when rendered
 
@@ -127,7 +127,7 @@
 (define new-tfield/oneof
   (derive-tfield-constructor tfield/oneof options [chosen #f]))
 (define new-tfield/listof
-  (derive-tfield-constructor tfield/listof base [elts empty]))
+  (derive-tfield-constructor tfield/listof base [elts empty] [non-empty? #f]))
 (define new-tfield/function  ; label is title
   (derive-tfield-constructor tfield/function text func args result))
 
@@ -154,7 +154,7 @@
      #f]
     [(tfield/oneof label name error options chosen)
      #f]
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      #f]
     [(tfield/function title name error text func args result)
      #f]
@@ -195,7 +195,7 @@
          (and chosen
               (<= chosen (length options))
               (any-error? (list-ref options chosen))))]
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      (or (true? error)
          (ormap any-error? elts))]
     [(tfield/function title name error text func args result)
@@ -228,8 +228,8 @@
      (tfield/struct label name #f constr (map clear args))]
     [(tfield/oneof label name error options chosen)
      (tfield/oneof label name #f (map clear options) #f)]
-    [(tfield/listof label name error base elts)
-     (tfield/listof label name #f (clear base) empty)]
+    [(tfield/listof label name error base elts non-empty?)
+     (tfield/listof label name #f (clear base) empty non-empty?)]
                     ;; should this really clear base???
                     ;; well base should really be cleared to begin with,
                     ;; maybe a TODO: ensure constructor for tfield/listof
@@ -268,7 +268,8 @@
           (<= chosen (length options))
           (filled? (list-ref options chosen)))]
     
-    [(tfield/listof label name error base elts) (andmap filled? elts)]
+    [(tfield/listof label name error base elts non-empty?)
+     (and (andmap filled? elts) (or (not non-empty?) (not (empty? elts))))]
     
     ;; for function... just check the args and result are filled?
     ;; ... don't try to apply func here otherwise...(?)
@@ -311,7 +312,7 @@
          (apply constr (map tfield->value args))]
         [(tfield/oneof label name error options chosen)
          (tfield->value (list-ref options chosen))]
-        [(tfield/listof label name error base elts)
+        [(tfield/listof label name error base elts non-empty?)
          (map tfield->value elts)]
         [(tfield/function title name error text func args result)
          (tfield->value result)]
@@ -381,7 +382,7 @@
           (struct-copy tfield/oneof tf
                        [options new-options] [chosen new-chosen]))]
     
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      (define elts/unify (and (list? v) (map (curry value->tfield base) v)))
      (and elts/unify 
           (andmap values elts/unify)
@@ -446,10 +447,10 @@
      (tfield/oneof label new-name error 
                    (rename/deep* options new-name) chosen)]
     
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      (tfield/listof label new-name
                     error (rename/deep base (string-append new-name "-base"))
-                    (rename/deep* elts new-name))]
+                    (rename/deep* elts new-name) non-empty?)]
     
     [(tfield/function title name error text func args result)
      (tfield/function title new-name error text func
@@ -487,7 +488,7 @@
       [(tfield/struct label name error constr args)     #f]
       [(tfield/oneof label name error options chosen)   
        (and chosen (number->string chosen))]
-      [(tfield/listof label name error base elts)      
+      [(tfield/listof label name error base elts non-empty?)      
        (number->string (length elts))]
       [(tfield/function title name error text func args result) #f]
       [_ (error (object-name validate)
@@ -623,7 +624,7 @@
            )]
     
     ;; ---- TFIELD/LISTOF ----
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      (define n (string->number (or (lookup-func name) "0")))
      (define elts-n (length elts))
      (define new-elts      ; extend or truncate elts if necessary
@@ -633,10 +634,14 @@
                                    (rename/deep* (make-list (- n elts-n) base)
                                                  name elts-n))]))
      ;(define new-elts (rename/deep* (make-list n base) name))
+
+     (define new-elts/parsed
+       (map (λ(e) (parse e lookup-func validate?)) new-elts))
      
-     (struct-copy 
-      tfield/listof tf
-      [elts (map (λ(e) (parse e lookup-func validate?)) new-elts)])]
+     (tfield/listof label name 
+                    (if (and non-empty? (empty? new-elts/parsed))
+                        ERRMSG/NOT-FILLED #f)
+                       base new-elts/parsed non-empty?)]
     
     ;; ---- TFIELD/FUNCTION
     [(tfield/function title name error text func args result)
@@ -759,7 +764,7 @@
              (if (member target-name (map tfield-name args)) (k f) #f)]
             [(tfield/oneof label name error options chosen)
              (if (member target-name (map tfield-name options)) (k f) #f)]
-            [(tfield/listof label name error base elts)
+            [(tfield/listof label name error base elts non-empty?)
              (if (member target-name (map tfield-name elts)) (k f) #f)]
             [(tfield/function title name error text func args result)
              (if (or (member target-name (map tfield-name args))
@@ -811,7 +816,7 @@
                                (copy/non-false (tfield/oneof-options tf)
                                                new-options)]))])]
     
-    [(tfield/listof label name error base elts)
+    [(tfield/listof label name error base elts non-empty?)
      (cond [(string=? target-name name) (tf-func tf)]
            [(update-named base target-name tf-func)
             => (λ(new-base) (struct-copy tfield/listof tf [base new-base]))]
@@ -855,7 +860,7 @@
     [(tfield/oneof label name error options chosen)
      (proc tf (foldl (λ(f i) (fold f proc i)) init options))]   
      ;; ^^^ goes through all options
-    [(tfield/listof label name error base elts) 
+    [(tfield/listof label name error base elts non-empty?) 
      (proc tf (foldl (λ(f i) (fold f proc i)) init elts))]
     [(tfield/function title name error text func args result)
      (proc tf (fold result proc (foldl (λ(f i) (fold f proc i)) init args)))]
@@ -945,52 +950,53 @@
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c)))]
- [struct tfield/const
+ [struct (tfield/const tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (value  any/c))]
- [struct tfield/number
+ [struct (tfield/number tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (value  (or/c #f number?))
     (raw-value (or/c #f string?)))]
- [struct tfield/string
+ [struct (tfield/string tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (value  (or/c #f string?))
     (non-empty? boolean?))]
- [struct tfield/symbol
+ [struct (tfield/symbol tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (value  (or/c #f symbol?)))] 
- [struct tfield/boolean
+ [struct (tfield/boolean tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (value  boolean?))]
- [struct tfield/struct
+ [struct (tfield/struct tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (constr procedure?)
     (args (listof tfield?)))]
- [struct tfield/oneof
+ [struct (tfield/oneof tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (options (listof tfield?))
     (chosen (or/c #f natural-number/c)))]
- [struct tfield/listof
+ [struct (tfield/listof tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
     (base   tfield?)
-    (elts   (listof tfield?)))]
- [struct tfield/function
+    (elts   (listof tfield?))
+    (non-empty? boolean?))]
+ [struct (tfield/function tfield)
    ((label  (or/c #f string?))
     (name   string?)
     (error (or/c #f xexpr/c))
@@ -1035,7 +1041,7 @@
                                                    (< chosen (length options)))
                         [_ tfield/oneof?]))
  (new-tfield/listof (->* ((or/c #f string?) tfield?)
-                         ((listof tfield?) #:name string? #:error xexpr/c)
+                         ((listof tfield?) boolean? #:name string? #:error xexpr/c)
                          tfield/listof?))
  (new-tfield/function (->* ((or/c #f string?) 
                             (or/c string? (listof xexpr/c)) procedure?
