@@ -121,6 +121,7 @@
 ; Event structure
 ; Event types (with options/parameters) are:
 ;    - 'refresh
+;    - 'reload   (parses form data, refresh doesn't)
 ;    - 'apply-input
 ;    - 'save-input   
 ;    - 'clear-input
@@ -131,6 +132,8 @@
 ;
 ;    - 'preview-saved [name : string]
 ;    - 'list-saved   [loosematch : #f or "loosematch"]
+;    - 'load-saved-edit [name : string]
+;    - 'load-saved-apply [name : string]
 ;    - ...
 ;  binding-function is : string -> (or #f string (list string<name> bytes<content>))
 (struct event (type binding-function))
@@ -169,6 +172,9 @@
 (define (event-dispatch tf ev)
   (define lookup-func (curry event-binding ev))
   (match (event-type ev)
+    
+    ['reload
+     (parse tf lookup-func #f)]
     
     ['clear-input 
      (clear tf)]
@@ -297,7 +303,7 @@
   (match (event-type ev)
 
     ; some events require complete refresh of all elements
-    [(or 'refresh 'clear-input 'save-input)
+    [(or 'refresh 'reload 'clear-input 'save-input)
      (full-refresh/xexpr
       (if (filled? tf) `() `((eval "resultTabState(false);"))))]
     
@@ -319,26 +325,9 @@
      `(taconite
        (replaceWith ([select ,divname])
           ,(render/edit (find-named tf name) (find-parent-of-named tf name)))
+       (html ([select "#form-error"] [arg1 ""]))
        ,cont-url-update/xexpr 
        ,(refresh-elts/xexpr divname))]
-    
-    #|['listof-add
-     (define name (event-binding ev "name"))
-     (define tf/listof (find-named tf name))
-     (define elts (tfield/listof-elts tf/listof))
-     (define num-added 1)
-     (define old-count (- (length elts) num-added))
-     `(taconite
-       (before ([select ,(format "#edit-args #~a-ol > li.nosort" name)])
-               ,@(map (curry render-listof-item/edit tf/listof)
-                      (take-right elts num-added)))
-       (val ([select ,(format "#edit-args #~a" name)] 
-               [arg1 ,(number->string (length elts))]))
-       ,cont-url-update/xexpr 
-       ,(refresh-elts/xexpr
-         (if (zero? old-count) 
-           (format "#edit-args #~a-ol > li:not(.nosort)" name)
-           (format "#edit-args #~a-ol > li:not(.nosort):gt(~a)" name (- old-count 1)))))]|#
        
     ['list-saved 
      (define loose-match? (equal? (event-binding ev "loosematch") "loosematch"))

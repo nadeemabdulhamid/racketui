@@ -194,6 +194,11 @@
 ;; ============================================================================
 ;; render form elements for display
 
+; colonize : string -> string 
+; adds ": " to end of given string if it's not ""
+(define (colonize str)
+  (if (equal? str "") str (string-append str ": ")))
+
 ; render*/disp : (listof tfield) (or #f tfield) -> (listof xexpr)
 (define (render*/disp tfs parent)
   (map (λ(t) (render/disp t parent)) tfs))
@@ -203,7 +208,7 @@
 ;                           (or xexpr (listof xexpr)) -> xexpr
 (define (render-basic/disp name classes label content)
   ((div-wrapper name `(tfield tfield-basic ,@classes))
-   (list (if label `(span ([class "label"]) ,label ": ") "")
+   (list (if label `(span ([class "label"]) ,(colonize label)) "")
          `(span ,@(if (xexpr? content) (list content) content)))))
       
 
@@ -232,7 +237,7 @@
                             (or value "-")))]
     [(tfield/struct label name error constr args)
      ((div-wrapper name '(tfield tfield-structure))
-      `(fieldset (legend ,label ": ")
+      `(fieldset (legend ,(colonize label))
                  (ul ,@(map (λ(a) `(li ,a)) (render*/disp args tf)))))]
     [(tfield/oneof label name error options chosen)
      (define selected-tf (and chosen (list-ref options chosen)))
@@ -245,7 +250,7 @@
          (render/disp selected-tf tf))])]
     [(tfield/listof label name error base elts non-empty?)
      ((div-wrapper name `(tfield tfield-listof))
-      `(fieldset (legend ,label ": ")
+      `(fieldset (legend ,(colonize label))
                  ,(if (empty? elts) 
                       "(empty)"
                       `(ol ,@(map (λ(a) `(li ,a)) (render*/disp elts tf))))))]

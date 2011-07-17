@@ -102,7 +102,7 @@ function ajaxErrorHandler(jqXHR, textStatus, errorThrown) {
 		$.blockUI({ message: $("#reloadMessage") });
 		$.when(
 			startupDelay(),
-			refreshFields()
+			makeRequest("reload")  // like "refresh" but form data is processed
 		).then( $.unblockUI );
 	}
 }	
