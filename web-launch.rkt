@@ -5,11 +5,9 @@
          web-server/servlet
          web-server/servlet-env
          web-server/managers/lru)
+(require (for-syntax syntax/parse))
 
 (define-runtime-path htdocs "./htdocs")
-
-
-  
 
 ;; launch-web : tfield/function -> ...
 (define (launch-web func/tf)
@@ -22,10 +20,17 @@
 
 
 ;; user syntax
-(define-syntax-rule (web-launch title tfield/func)
-  (launch-web ((parse/web-spec (web-spec tfield/func)) title)))
+;(define-syntax-rule (web-launch title tfield/func)
+;  (launch-web ((parse/web-spec (web-spec tfield/func)) title)))
 
+(define-syntax (web-launch stx)
+  (syntax-parse stx
+    [(web-launch title tfield/func)
+     #`(launch-web ((parse/web-spec (web-spec tfield/func)) title))]
+    [(web-launch lab+spec)
+     #`(launch-web ((parse/web-spec (second lab+spec)) (first lab+spec)))]))
 
+                
 ;; ============================================================================
 
 

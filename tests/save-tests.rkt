@@ -100,8 +100,9 @@
      (check-equal? (tfield->skel-expr to1) '(oneof constant (structure (number string))))
      (check-equal? (tfield->skel-expr to1 #t) '(oneof constant (structure entry (number string))))
      
-     (check-equal? (tfield->skel-expr tf1) '(function ((listof number) string 
-                                               (oneof constant (structure (number string))))))
+     (check-equal? (tfield->skel-expr tf1) '(function ((listof number) string)))
+                                           ;; don't include result unless doing a exact match
+                                               ;;; (oneof constant (structure (number string))))))
      (check-equal? (tfield->skel-expr tf1 #t) 
                    '(function samp-func ((listof number) string 
                               (oneof constant (structure entry (number string))))))

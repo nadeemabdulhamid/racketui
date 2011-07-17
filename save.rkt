@@ -96,11 +96,11 @@
 
 ;; tfield->skel : tfield boolean -> skel-expr
 ;; produces an sexpression (made up of lists and symbols) representing
-;;  the *structure* of the tfield (not data); if func-names? is #t,
-;;  includes names of functions and constructors (as symbols) in the
-;;  produced expression
+;;  the *structure* of the tfield (not data); if complete? is #t,
+;;  includes names of functions and constructors (as symbols), and the
+;;  result type also, in the produced expression
 
-(define (tfield->skel-expr tf [func-names? #f])
+(define (tfield->skel-expr tf [complete? #f])
   (match tf
     [(tfield/const label name errors value)
      'constant]
@@ -113,16 +113,16 @@
     [(tfield/boolean label name errors value)
      'boolean]
     [(tfield/struct label name errors constr args)
-     `(structure ,@(if func-names? (list (object-name constr)) empty)
-                 ,(map (λ(f) (tfield->skel-expr f func-names?)) args))]
+     `(structure ,@(if complete? (list (object-name constr)) empty)
+                 ,(map (λ(f) (tfield->skel-expr f complete?)) args))]
     [(tfield/oneof label name errors options chosen)
-     `(oneof ,@(map (λ(f) (tfield->skel-expr f func-names?)) options))]
+     `(oneof ,@(map (λ(f) (tfield->skel-expr f complete?)) options))]
     [(tfield/listof label name errors base elts non-empty?)
-     `(listof ,(tfield->skel-expr base func-names?))]
+     `(listof ,(tfield->skel-expr base complete?))]
     [(tfield/function title name errors text func args result)
-     `(function ,@(if func-names? (list (object-name func)) empty)
-                (,@(map (λ(f) (tfield->skel-expr f func-names?)) args)
-                 ,(tfield->skel-expr result func-names?)))]
+     `(function ,@(if complete? (list (object-name func)) '())
+                (,@(map (λ(f) (tfield->skel-expr f complete?)) args)
+                 ,@(if complete? (list (tfield->skel-expr result complete?)) '())))]
     [_ (error 'tfield->skel (format "somehow got an unknown field type: ~a" tf))])
   )
 

@@ -95,9 +95,9 @@
 ;; ============================================================================
 
 ;(go acro/tf)
-;(go accugrade/tf)
+(go accugrade/tf)
 
-(web-launch "Acronym Builder"
+#;(web-launch "Acronym Builder"
             (function 
              "Produces an acronym of the capitalized words in the given list."
              (acronym ["Words" (listof+ ["Word" string+])]

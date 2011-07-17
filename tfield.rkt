@@ -23,6 +23,10 @@
 |#
 
 
+;; TODO: clean up tfield/struct case of value->tfield -- several weird things
+;;       there to account for apparent BSL behavior with structs ???
+
+
 ;;=============================================================================
 ;;=============================================================================
 ;;=============================================================================
@@ -363,13 +367,22 @@
           (struct-copy tfield/boolean tf [value v]))]
     
     [(tfield/struct label name error constr args)
-     ;; QUESTION: 
+     (define struct-args (cdr (vector->list (struct->vector v))))   
+     ;; QUESTION:  ??????
      ;; IS THIS THE BEST WAY TO CHECK TYPE OF STRUCTURE ********* <-----
-     (and (equal? (object-name v) (object-name constr))
+     (and (symbol? (object-name v)) (symbol? (object-name constr))
+          (or (equal? (object-name v) (object-name constr))
+              (equal?
+               (string-append "make-" (symbol->string (object-name v)))
+               (symbol->string (object-name constr))))
+          (or (= (length args) (length struct-args))
+              (= (length args) (sub1 (length struct-args))))
+          ; in BSL, struct->vector produces an extra field at the end?????
           (block
-           (define struct-args (cdr (vector->list (struct->vector v))))
+           ;(printf "here\n ~a ~a\n\n~a ~a\n" (length args) args (length struct-args) struct-args)
            (define value/args
-             (map (λ(a v/arg) (value->tfield a v/arg)) args struct-args))
+             (map (λ(a v/arg) (value->tfield a v/arg)) 
+                  args (take struct-args (length args))))
            (and (andmap (λ(i)i) value/args)
                 (struct-copy tfield/struct tf [args value/args]))))]
     
@@ -716,8 +729,8 @@
   (define new-result 
     (and result-good? (value->tfield result (second return-value))))
   
-  ;(printf "applied: filled? ~s good? ~s new-result: ~s return-value: ~s\n" 
-  ;        all-filled? result-good? new-result return-value)
+  ;;;(printf "applied: filled? ~s good? ~s new-result: ~s return-value: ~s\n" 
+  ;;;        all-filled? result-good? new-result return-value)
   
   (cond [(not all-filled?) 
          `(failure ,ERRMSG/MISSING-INPUT)]
@@ -784,6 +797,11 @@
     (map (λ(o n) (if n n o)) old new))
   
   (match tf
+    [(or (? tfield/const? _) (? tfield/number? _)
+         (? tfield/string? _) (? tfield/boolean? _)
+         (? tfield/symbol? _))
+     (and (string=? target-name (tfield-name tf)) (tf-func tf))]
+    #|
     [(tfield/const label name error value)
      (and (string=? target-name name) (tf-func tf))]
     
@@ -796,6 +814,9 @@
     [(tfield/boolean label name error value)
      (and (string=? target-name name) (tf-func tf))]
     
+    [(tfield/symbol label name error value)
+     (and (string=? target-name name) (tf-func tf))]
+    |#
     [(tfield/struct label name error constr args)
      (cond [(string=? target-name name) (tf-func tf)]
            [else
