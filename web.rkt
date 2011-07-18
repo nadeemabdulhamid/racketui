@@ -134,7 +134,8 @@
 ;    - 'list-saved   [loosematch : #f or "loosematch"]
 ;    - 'load-saved-edit [name : string]
 ;    - 'load-saved-apply [name : string]
-;    - ...
+;    - 'remove-saved-one [name : string]
+;    - 'remove-saved-all [loosematch : #f or "loosematch"]
 ;  binding-function is : string -> (or #f string (list string<name> bytes<content>))
 (struct event (type binding-function))
 
@@ -181,8 +182,11 @@
     
     ['apply-input 
      (define parsed-tf (parse tf lookup-func #t))
-     (define new-tf (or (apply-tfield/function parsed-tf) parsed-tf))
-     (save-tfield new-tf)
+     (define applied-tf (apply-tfield/function parsed-tf))
+     (define new-tf (or applied-tf parsed-tf))
+     (when applied-tf   ; only auto-save on successful applications
+       (save-tfield new-tf)  ; auto-save
+       (purge-auto-saves tf))
      new-tf]
     
     ['load-saved-edit
@@ -192,6 +196,15 @@
     ['load-saved-apply
      (define loaded-tf (load-tfield tf (event-binding ev "name")))
      (if (not loaded-tf) (clear tf) (validate loaded-tf))]
+    
+    ['remove-saved-one 
+     (remove-save-file tf (event-binding ev "name"))
+     tf]
+    
+    ['remove-saved-all
+     (define loose-match? (equal? (event-binding ev "loosematch") "loosematch"))
+     (remove-all-saves tf loose-match?)
+     tf]
     
     ['save-input
      (define parsed-tf (parse tf lookup-func #f))
@@ -343,6 +356,9 @@
                  `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f)))
                  `(div "No data")))
        ,cont-url-update/xexpr)]
+    
+    [(or 'remove-saved-one 'remove-saved-all)
+     `(taconite (eval "populateSaved();"))]
     
     [_ `(empty-response)]))
 

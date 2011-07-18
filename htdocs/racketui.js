@@ -15,8 +15,8 @@ var BASE_URL = window.location.pathname;
 /**************************************************************/
 /* initialization upon load */
 $(function() {
-    $.blockUI({ message: $("#loadMessage"),
-		        onUnblock: function() { $("#loadMessage").remove(); }});
+    $.blockUI({ message: $("#loadMessage") });
+		        //onUnblock: function() { $("#loadMessage").remove(); }});
     
     /* synchronous-*ONLY* setup functions -- i.e. these should
        NOT make any AJAX calls */
@@ -24,7 +24,7 @@ $(function() {
     
     $.when(
 		startupDelay(),
-		refreshFields()
+		makeRequest("refresh")
 	).then( $.unblockUI );
 	
 	//$.taconite.debug = true; 
@@ -46,18 +46,25 @@ function onPageLoad() {
 	$("#clear-input-button").button({icons: {primary: "ui-icon-cancel"}});
 	$("#save-input-button").button({icons: {primary: "ui-icon-disk"}});
 	$("#apply-input-button").button({icons: {primary: "ui-icon-lightbulb"}});
-
+	$("#exit-server").button({icons: {primary: "ui-icon-power"}});
+	
 	// button handlers	
 	$("#apply-input-button").click(makeRequestFunc("apply-input", true));
 	$("#clear-input-button").click(makeRequestFunc("clear-input", true));
 	$("#save-input-button").click(makeRequestFunc("save-input", true));
 	$("#edit-again-button").click(function() { resultTabState(false, 1); });
+	$("#exit-server").click(doShutDown);
 
 	// save tab stuff
 	var selvalfunc = function() {return {name: $("#history-select").val()}};
 	$("#history-select").change(makeRequestFunc("preview-saved", selvalfunc, false));
 	$("#load-save-edit").click(makeRequestFunc("load-saved-edit", selvalfunc, false));
 	$("#load-save-apply").click(makeRequestFunc("load-saved-apply", selvalfunc, false));
+	$("#delete-one-save").click(makeRequestFunc("remove-saved-one", selvalfunc, false));
+	$("#delete-all-save").click(makeRequestFunc("remove-saved-all",
+										function() { return ($("#loosematch").is(":checked"))
+														  ? { loosematch: "loosematch" } : {}; },
+										false));
 	$("#loosematch").change(populateSaved);
 	$("#usersaveonly").change(populateSaved);
 	$("#select-save-prev").click(function() { goPreviousSaved(); return false; });
@@ -106,7 +113,7 @@ function ajaxErrorHandler(jqXHR, textStatus, errorThrown) {
 		).then( $.unblockUI );
 	}
 }	
-		    
+
 
 function goPreviousSaved() {
 	var sel = $("#history-select");
@@ -316,23 +323,6 @@ function extractPrefix(str) {
 
 
 /**************************************************************/
-/* input elements/output results refresh/display */
-
-
-/* makes AJAX 'refresh' request and fills in input elements
-   and display elements with value of the program's input
-   and output data, as appropriate */
-function refreshFields(switchToResultTab) {
-	makeRequest("refresh");
-	//$.get(CONT_URL, { requesttype: "refresh", conturl: CONT_URL });
-	// response calls refreshElements() and populateSaved()
-	//  through taconite eval
-}
-
-
-
-
-/**************************************************************/
 /* saved tab functionality */
 
 function populateSaved() {
@@ -375,6 +365,15 @@ function populateSaved() {
 	});
 }
 
+
+/**************************************************************/
+/* shutdown */
+
+function doShutDown() {
+	$.blockUI.defaults.overlayCSS.opacity = 1;  // make overlay very opaque
+	$.blockUI({ message: $("#shutdownMessage") });
+	$.get("/quit");
+}
 
 
 

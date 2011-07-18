@@ -653,7 +653,7 @@
        (map (λ(e) (parse e lookup-func validate?)) new-elts))
      
      (tfield/listof label name 
-                    (if (and non-empty? (empty? new-elts/parsed))
+                    (if (and validate? non-empty? (empty? new-elts/parsed))
                         ERRMSG/NOT-EMPTY #f)
                        base new-elts/parsed non-empty?)]
     

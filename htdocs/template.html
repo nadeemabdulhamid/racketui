@@ -28,13 +28,6 @@
       <h1 id="program-title">@|title|</h1>
       <p id="program-text">@|text|</p>
       
-      <div id="loadMessage" style="display:none; padding: 1em;">
-		<img src="loading.gif" alt="loading animation" /><p>Loading @|title|...</p>	
-      </div>
-	  <div id="reloadMessage" style="display:none; padding: 1em;">
-		<img src="loading.gif" alt="reloading animation" /><p>RE-loading @|title|...</p>	
-      </div>
-
       <div id="tabs">
 		<ul>
 		  <li><a href="#saved">Saved</a></li>
@@ -91,11 +84,6 @@
 				<button id="apply-input-button" type="button">Apply input</button>
 				<button id="save-input-button" type="button">Save current input</button>
 				<button id="clear-input-button" type="button">Clear all input</button>
-			  <!--
-			  <input type="submit" id="form-submit" name="form-submit" value="Apply Input" />
-			  <input type="button" id="form-debug" name="form-debug" value="Form Debug" />
-			  <input type="reset" id="form-reset" value="Clear current input" />
-			  -->
 			</div>
 		  </form>
 		</div>    <!-- #edit -->
@@ -123,11 +111,22 @@
     <hr />
     
     <div id="footer">
-      <a href="/quit">
-		<span class="ui-icon ui-icon-power" style="float: left;"></span>
-		Exit Server
-      </a>
+      <button id="exit-server" type="button" style="float: left;">Exit @|title|</button>
     </div>
+    
+    
+    <!-- These are hidden DIVs for dialog boxes... -->
+	<div id="loadMessage" style="display:none; padding: 1em;">
+		<img src="loading.gif" alt="loading animation" /><p>Loading @|title|...</p>	
+	</div>
+	<div id="reloadMessage" style="display:none; padding: 1em;">
+		<img src="loading.gif" alt="reloading animation" /><p>RE-loading @|title|...</p>	
+	</div>
+	<div id="shutdownMessage" style="display:none; padding: 1em;">
+		<img src="power-off.png" alt="power off" />
+		<h2>@|title|<br />application has been terminated.</h2>
+		<p>Run your Racket program again to re-launch.</p>
+	</div>
     
   </body>
 </html>

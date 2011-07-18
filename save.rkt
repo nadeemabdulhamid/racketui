@@ -66,6 +66,9 @@
 ;; Directory to put saved files...
 (define TEMP-DIR-BASE (build-path (find-system-path 'pref-dir) "racketui-saves"))
 
+;; Maximum number of auto-saved files to keep (per specific tfield, not
+;;   loose match)
+(define MAX-AUTO-SAVES 5)
 
 ;; A skel-expr is either:
 ;;   - 'constant
@@ -307,6 +310,7 @@
   )
 
 
+
 ;; saved-files-for : tfield [boolean] -> (listof string)
 ;; if loose-match?, then produces all saved files in directory,
 ;;   ignoring function/constructor names
@@ -407,6 +411,48 @@
   (date->string (time-utc->date (make-time time-utc 0 secs)) fs))
 
 
+
+
+
+
+
+;;==============================================================================
+;;==============================================================================
+;;==============================================================================
+
+
+;; purge-auto-saves : tfield [number] -> void
+;; removes all except the given number of auto-save (non-user-saved) files for
+;; the given tfield
+
+(define (purge-auto-saves tf [num MAX-AUTO-SAVES])
+  
+  ; sort in reverse order, because we want to *keep* the latest
+  (define auto-saves 
+    (filter (compose not user-saved?/tfield-file)
+                      (sort (saved-files-for tf #f) string>?)))
+  (define-values (keep throw)
+    (split-at auto-saves (min num (length auto-saves))))
+  
+  ;(printf "KEEPING ~a\nPURGING ~a ~a\n" keep num throw)
+  (for ([file-name throw]) (remove-save-file tf file-name)))
+
+
+;; remove-save-file : tfield string -> void
+
+(define (remove-save-file tf file-name)
+  (define save-dir (build-path TEMP-DIR-BASE (save-directory-name tf)))
+  (define file-path (build-path save-dir file-name))
+  (when (file-exists? file-path) (delete-file file-path)))
+
+
+;; remove-all-saves : tfield [boolean] -> void
+
+(define (remove-all-saves tf [loose-match? #f])
+  (for ([file-name (saved-files-for tf loose-match?)])
+    (remove-save-file tf file-name)))
+
+
 ;;==============================================================================
 ;;==============================================================================
 ;;==============================================================================
@@ -439,6 +485,8 @@
  (timestamp/tfield-file (-> string? natural-number/c))
  (user-saved?/tfield-file (-> string? boolean?))
  (hash-of/tfield-file (-> string? natural-number/c))
- 
+ (purge-auto-saves (->* (tfield?) (number?) void))
+ (remove-save-file (-> tfield? string? void))
+ (remove-all-saves (->* (tfield?) (boolean?) void))
  )
  
