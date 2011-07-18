@@ -105,9 +105,11 @@ function onPageLoad() {
 	$("#usersaveonly").change(populateSaved);
 	$("#select-save-prev").click(function() { goPreviousSaved(); return false; });
 	$("#select-save-next").click(function() { goNextSaved(); return false; });
-	$("#saved").keydown(function (event) {
-		if (event.keyCode == 39) { goNextSaved(); }
-		else if (event.keyCode == 37) { goPreviousSaved(); }
+	$(document).keydown(function (event) {
+		if ($("#tabs").tabs( "option", "selected" ) == 0) {
+			if (event.keyCode == 39) { goNextSaved(); }
+			else if (event.keyCode == 37) { goPreviousSaved(); }
+		}
 	});
 
 }
@@ -153,25 +155,21 @@ function ajaxErrorHandler(jqXHR, textStatus, errorThrown) {
 }	
 
 
-function goPreviousSaved() {
+function goPrevOrNextSaved(offset) {
 	var sel = $("#history-select");
+	sel.blur(); // this is because firefox seems to go the opposite
+	            // direction if the select element has focus ????
 	var selected = $("#history-select option:selected");
 	var options = $("#history-select option");
 	var index = options.index(selected);
-	var prevIndex = Math.min(index+1, options.length-1);
-	$(options[prevIndex]).attr('selected', 'selected');
-	sel.change();  // update preview
-}
-
-function goNextSaved() {
-	var sel = $("#history-select");
-	var selected = $("#history-select option:selected");
-	var options = $("#history-select option");
-	var index = options.index(selected);
-	var nextIndex = Math.max(index-1, 1);
+	var nextIndex = Math.max(Math.min(index+offset, options.length-1), 1);
 	$(options[nextIndex]).attr('selected', 'selected');
 	sel.change();  // update preview
 }
+
+function goPreviousSaved() { goPrevOrNextSaved(1); }
+function goNextSaved() { goPrevOrNextSaved(-1); }
+
 
 function resultTabState(enabled, selectOther) {
 	$("#tabs").tabs( 'option', 'disabled', [] );
@@ -366,8 +364,6 @@ function populateSaved() {
 		error: ajaxErrorHandler,
 		success: function(data) {
 			sel.empty();   // clear all current stuff
-			//updateContUrl(data);
-			//CONT_URL = $(xmldata).find("a#cont-url").attr('href');
 			var grps = $(data).find("group");
 			for (var g = 0; g < grps.length; g++) {
 				var optgrp = $("<optgroup />");
@@ -378,6 +374,8 @@ function populateSaved() {
 					var namestr = elt.attr('name');
 					var timestr = elt.attr('timestring');
 					var usersave = elt.attr('usersaved');
+					if (usersave)
+						timestr = "* " + timestr + " *";
 					var newop = '<option value="' + namestr
 								+ '"'
 								+ (usersave ? ' class="usersave"' : '')
