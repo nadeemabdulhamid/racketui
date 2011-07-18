@@ -11,17 +11,15 @@
               "CD")
 
 (define (acronym a-los)
-  (cond
-    [(empty? a-los) ""]
-    [(cons? a-los) (cond 
-                     [(string-upper-case? (string-ith (first a-los) 0))
-                      (string-append (string-ith (first a-los) 0)
-                                     (acronym (rest a-los)))]
-                     [else (acronym (rest a-los))])]
-    ))
+  (cond [(empty? a-los) ""]
+        [(cons? a-los) (cond 
+                         [(string-upper-case? (string-ith (first a-los) 0))
+                          (string-append (string-ith (first a-los) 0)
+                                         (acronym (rest a-los)))]
+                         [else (acronym (rest a-los))])]))
 
 (require racket/base)
-(require (planet nah22/racketui/web-launch))
+(require (planet nah22/racketui))
 
 (web-launch
  "Acronym Builder"
