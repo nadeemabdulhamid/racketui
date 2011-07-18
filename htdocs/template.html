@@ -14,8 +14,8 @@
     <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"></script>
     <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.13/jquery-ui.min.js"></script>
     <script type="text/javascript" src="jquery.blockUI.js"></script>
-    <script type="text/javascript" src="https://raw.github.com/malsup/taconite/master/jquery.taconite.js"></script>
-    <!--script type="text/javascript" src="http://andygroff.com/jquery-debugger-debugging-plugin/andy.jqdebugger.js"></script-->
+    <script type="text/javascript" src="jquery.cookie.js"></script>
+    <script type="text/javascript" src="jquery.taconite.js"></script>
 
     <script type="text/javascript">var CONT_URL = "@cont-url";</script>
     <script type="text/javascript" src="racketui.js"></script>
@@ -46,7 +46,7 @@
 			  <br />
 			  <label>	
 				<input type="checkbox" id="loosematch" name="loosematch"/>
-				Include all similar input entries
+				Include entries from similar programs
 			  </label>
 			  <br />
 			  <label>
@@ -76,7 +76,7 @@
 		</div>  <!-- #saved  -->
 
 		<div id="edit" class="edit">
-		  <form action="">
+		  <form action="#">
 			<div id="form-error" class="error"></div>
 			<div id="edit-args" class="edit nest1"></div>
 	

@@ -801,22 +801,7 @@
          (? tfield/string? _) (? tfield/boolean? _)
          (? tfield/symbol? _))
      (and (string=? target-name (tfield-name tf)) (tf-func tf))]
-    #|
-    [(tfield/const label name error value)
-     (and (string=? target-name name) (tf-func tf))]
-    
-    [(tfield/number label name error value raw-value)
-     (and (string=? target-name name) (tf-func tf))]
-    
-    [(tfield/string label name error value non-empty?)
-     (and (string=? target-name name) (tf-func tf))]
-    
-    [(tfield/boolean label name error value)
-     (and (string=? target-name name) (tf-func tf))]
-    
-    [(tfield/symbol label name error value)
-     (and (string=? target-name name) (tf-func tf))]
-    |#
+
     [(tfield/struct label name error constr args)
      (cond [(string=? target-name name) (tf-func tf)]
            [else

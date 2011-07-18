@@ -234,6 +234,10 @@
      (update-named tf name
              (λ(tf/o) (parse tf/o lookup-func #f)))]
     
+    ['update-field
+     (define name (event-binding ev "name"))
+     (or (update-named tf name (λ(tf/u) (parse tf/u lookup-func #f))) tf)]
+    
      [_ tf]))
 
 
@@ -293,7 +297,8 @@
   (define args (tfield/function-args tf))
   (define result (tfield/function-result tf))
   
-  (define cont-url-update/xexpr `(eval "CONT_URL = '" ,cont-url "';"))
+  (define cont-url-update/xexpr ;`(eval "CONT_URL = '" ,cont-url "';"))
+    `(eval "updateContUrl('" ,cont-url "');"))
   (define (refresh-elts/xexpr parentSelector)
     `(eval "refreshElements('" ,parentSelector "');"))
   (define (full-refresh/xexpr [additional '()])
@@ -309,12 +314,14 @@
                   `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f)))
                   ""))
        ,cont-url-update/xexpr 
-       (eval "populateSaved();")
+       (eval "populateSaved(); $('body').scrollTop(0);")
        ,(refresh-elts/xexpr "form")
        ,@additional))
   
   (match (event-type ev)
 
+    ['ping '(ping "Hello")]
+    
     ; some events require complete refresh of all elements
     [(or 'refresh 'reload 'clear-input 'save-input)
      (full-refresh/xexpr
@@ -359,6 +366,9 @@
     
     [(or 'remove-saved-one 'remove-saved-all)
      `(taconite (eval "populateSaved();"))]
+    
+    ['update-field
+     `(taconite ,cont-url-update/xexpr)]
     
     [_ `(empty-response)]))
 

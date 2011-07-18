@@ -12,20 +12,28 @@ return json;
 
 var BASE_URL = window.location.pathname;
 
+
+
 /**************************************************************/
 /* initialization upon load */
 $(function() {
     $.blockUI({ message: $("#loadMessage") });
 		        //onUnblock: function() { $("#loadMessage").remove(); }});
     
-    /* synchronous-*ONLY* setup functions -- i.e. these should
-       NOT make any AJAX calls */
-    onPageLoad();
-    
-    $.when(
-		startupDelay(),
-		makeRequest("refresh")
-	).then( $.unblockUI );
+	/* synchronous-*ONLY* setup functions -- i.e. these should
+	   NOT make any AJAX calls */
+	onPageLoad();
+
+	// check for CONT_URL cookie -- restore if so, before continuing with
+	//  rest of initialization
+    checkContUrlCookie(
+    	function() {
+			$.when(
+				/* AJAX calls - the UI is only unblocked after all done */	
+				startupDelay(),
+				makeRequest("refresh")
+			).then( $.unblockUI );
+		});
 	
 	//$.taconite.debug = true; 
 });
@@ -35,11 +43,39 @@ $(function() {
 /**************************************************************/
 /* setup functions for various pieces of the page */
 
-/* called once, on load */
+/* attempts to see if a valid cont-url is stored in the CONT_URL
+   cookie, sets CONT_URL to that if so; in either case, when done
+   checking, it executes the given startupFunction */
+function checkContUrlCookie(startupFunction) {
+	var cookval = $.cookie('CONT_URL');
+	if (cookval) {
+		$.ajax({url: cookval, data: {requesttype: "ping"},
+				error: function() {
+							$.cookie('CONT_URL', null); /* clear it */ 
+							startupFunction();
+						},
+				success: function() { 
+							CONT_URL = cookval;
+							startupFunction();
+						 }
+				});
+	} else {
+		startupFunction();
+	}
+}
+
+
+/* called once, on load 
+   this should not make any ajax calls -- only set up gui images/themes,
+   and event handlers
+*/
 function onPageLoad() {
 	// tabs setup
-	var hasResult = $("#program-output").children().length;
-	$("#tabs").tabs({selected: 1, disabled: (hasResult?[]:[2])});
+  		//var hasResult = $("#program-output").children().length;
+	$("#tabs").tabs({selected: 1, disabled: [2]});
+
+	// disable form submission
+	$("#edit > form").submit(function() { return false; });
 
 	// button images
 	$("#edit-again-button").button({icons: {primary: "ui-icon-wrench"}});
@@ -52,7 +88,7 @@ function onPageLoad() {
 	$("#apply-input-button").click(makeRequestFunc("apply-input", true));
 	$("#clear-input-button").click(makeRequestFunc("clear-input", true));
 	$("#save-input-button").click(makeRequestFunc("save-input", true));
-	$("#edit-again-button").click(function() { resultTabState(false, 1); });
+	$("#edit-again-button").click(function() { resultTabState(false, 1); $("body").scrollTop(0); });
 	$("#exit-server").click(doShutDown);
 
 	// save tab stuff
@@ -83,7 +119,6 @@ function makeRequest( type, params, sendFormData ) {
 
 function makeRequestFunc( type, params, sendFormData ) {
 	return function() {
-		//console.log("request: " + type + " conturl: " + CONT_URL);
 		if (sendFormData == undefined) { 
 			if (params == true || params == false) {
 				sendFormData = params; params = {}; 
@@ -94,6 +129,9 @@ function makeRequestFunc( type, params, sendFormData ) {
 		var thedata = $.extend({ requesttype: type, conturl: CONT_URL }, 
 							   (typeof params == 'function' ? params() : params));
 		if (sendFormData) thedata = addFormData(thedata);
+
+		console.log("request: " + type + "\ncont-url: " + CONT_URL + "\nthedata: "); 
+		console.log(thedata);
 		return $.ajax({url: CONT_URL, 
 					   data: thedata,
 					   error: ajaxErrorHandler
@@ -168,6 +206,12 @@ function refreshElements(parentSelector) {
 	
 	// add handler for oneof selects
 	$(selpref+"select.tfield-oneof").change(onSelectOneOf);
+	
+	// add handle for all input updates
+	var inputs = $(selpref+"input");
+	for (var i = 0; i < inputs.length; i++) {
+		$(inputs[i]).change(makeRequestFunc("update-field", {name:$(inputs[i]).attr('name')}));
+	}
 }
 
 
@@ -186,10 +230,6 @@ function onSelectOneOf(ev) {
 	var sel = $(this);
 	makeRequest("oneof-change", { name: sel.attr('id'),
 								  chosen: sel.val() });
-	/*
-	$.get(CONT_URL, addFormData({ requesttype: "oneof-change",
-									name: sel.attr('id'),
-									chosen: sel.val() })); */
 }
 
 /* when a list's "add ..." button is clicked */
@@ -197,7 +237,6 @@ function addToList(ev) {
 	var btn = $(this); // $(ev.target).closest("button");
 	var listname = dropSuffix(btn.attr('id'));
 	makeRequest("listof-add", { name: listname });
-	//$.get(CONT_URL, addFormData({ requesttype: "listof-add", name: listname }));
 }
 
 /* when delete button is clicked for an item */
@@ -205,7 +244,6 @@ function deleteFromList(ev) {
 	var btn = $(this);
 	var listname = dropSuffix(btn.closest('ol').attr('id'));
 	var index = extractLastIndex(btn.attr('id'));
-//	$.get(CONT_URL, addFormData({ requesttype: "listof-delete", 
 	makeRequest("listof-delete", { name: listname, item: index });
 }
 
@@ -233,10 +271,6 @@ function reorderList(event, ui) {
 		//console.log(thename +": swap " + itemidx + " and " + newitemidx);
 
 		makeRequest("listof-reorder", {name:thename, from:itemidx, to:newitemidx});
-		/*
-		var reqdata = { requesttype: "listof-reorder", name: thename,
-						from: itemidx, to: newitemidx };
-		$.get(CONT_URL, addFormData(reqdata));*/
 	}
 }
 
@@ -253,16 +287,11 @@ function startupDelay() {
 	return dfd.promise();
 }
 
-/* updates the CONT_URL global variable, if a link element exists
-   in the given dom,
-   <a id="cont-url" href="...."></a> 
+/* updates the CONT_URL global variable, sets cookie
 */
-function updateContUrl(xmldata) {
-	var elt = $(xmldata).find("a#cont-url");
-	if (elt.length > 0) {
-		//alert(CONT_URL + '\n' + elt.attr('href'));
-		CONT_URL = elt.attr('href');
-	}
+function updateContUrl(newURL) {
+	CONT_URL = newURL;
+	$.cookie('CONT_URL', CONT_URL);
 }
 
 /* convert XML DOM object to string */
@@ -337,7 +366,8 @@ function populateSaved() {
 		error: ajaxErrorHandler,
 		success: function(data) {
 			sel.empty();   // clear all current stuff
-			updateContUrl(data);
+			//updateContUrl(data);
+			//CONT_URL = $(xmldata).find("a#cont-url").attr('href');
 			var grps = $(data).find("group");
 			for (var g = 0; g < grps.length; g++) {
 				var optgrp = $("<optgroup />");
@@ -360,6 +390,7 @@ function populateSaved() {
 			}
 			sel.prepend('<option value="-">-</option>');
 			//alert((new XMLSerializer()).serializeToString(data));
+			sel.change();  // update preview
 		},
 		dataType: "xml" 
 	});
@@ -370,9 +401,9 @@ function populateSaved() {
 /* shutdown */
 
 function doShutDown() {
-	var shutdowndiv = $("#shutdownMessage");
-	$("#content").html("<div> </div>");
-	$(this).remove();
+	$.cookie('CONT_URL', null);
+	$("#content").html("<div> </div>");   // clear all content
+	$(this).remove();   // remove the "exit" button
 	//$.blockUI.defaults.overlayCSS.opacity = 1;  // make overlay very opaque
 	$.blockUI({ message: $("#shutdownMessage") });
 	$.get("/quit");
