@@ -370,7 +370,10 @@ function populateSaved() {
 /* shutdown */
 
 function doShutDown() {
-	$.blockUI.defaults.overlayCSS.opacity = 1;  // make overlay very opaque
+	var shutdowndiv = $("#shutdownMessage");
+	$("#content").html("<div> </div>");
+	$(this).remove();
+	//$.blockUI.defaults.overlayCSS.opacity = 1;  // make overlay very opaque
 	$.blockUI({ message: $("#shutdownMessage") });
 	$.get("/quit");
 }
