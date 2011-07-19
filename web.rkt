@@ -175,16 +175,15 @@
   (match (event-type ev)
     
     ['reload
-     (parse tf lookup-func #f)]
+     (parse tf lookup-func #f #f)]
     
     ['clear-input 
      (clear tf)]
     
     ['apply-input 
-     (define parsed-tf (parse tf lookup-func #t))
-     (define applied-tf (apply-tfield/function parsed-tf))
-     (define new-tf (or applied-tf parsed-tf))
-     (when applied-tf   ; only auto-save on successful applications
+     (define new-tf (parse tf lookup-func #t))
+     (define success? (filled? new-tf))
+     (when success?   ; only auto-save on successful applications
        (save-tfield new-tf)  ; auto-save
        (purge-auto-saves tf))
      new-tf]
@@ -207,7 +206,7 @@
      tf]
     
     ['save-input
-     (define parsed-tf (parse tf lookup-func #f))
+     (define parsed-tf (parse tf lookup-func #f #f))
      (save-tfield parsed-tf #:usersave #t)
      parsed-tf]
     
@@ -232,11 +231,11 @@
      (define name (event-binding ev "name"))
      (define chosen (event-binding/number ev "chosen")) ; #f or number
      (update-named tf name
-             (λ(tf/o) (parse tf/o lookup-func #f)))]
+             (λ(tf/o) (parse tf/o lookup-func #f #f)))]
     
     ['update-field
      (define name (event-binding ev "name"))
-     (or (update-named tf name (λ(tf/u) (parse tf/u lookup-func #f))) tf)]
+     (or (update-named tf name (λ(tf/u) (parse tf/u lookup-func #f #f))) tf)]
     
      [_ tf]))
 
@@ -335,7 +334,9 @@
      (full-refresh/xexpr
       (list (if (filled? tf) 
                 `(eval "resultTabState(true);") 
-                `(eval "resultTabState(false);"))))]
+                `(eval "resultTabState(false);"))
+            `(eval "window.blur();")
+            ))]
     
     ; a number of events just need to replace the updated outer <div>
     ; as a response...

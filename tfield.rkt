@@ -519,7 +519,8 @@
 ;
 ; for a function tfield, parses all the argument tfields, *that are not 
 ;  tfield/function's in themselves*, then it strips
-;  the arguments for their values, attempts to apply the function and unify
+;  the arguments for their values, attempts to apply the function (if
+;  'apply-func' argument is #t and unify
 ;  (i.e. tfield->value) the result with the result tfield, filling in the 
 ;  error if that is not successful (i.e. if exception occurs either 
 ;  with tfield->value or when the function is actually applied)
@@ -532,7 +533,7 @@
 (define ERRMSG/FUNC-APP "Something went wrong processing the input")
 (define ERRMSG/MISMATCH "The result of the program was of an unexpected type")
 
-(define (parse tf lookup-func [validate? #t])
+(define (parse tf lookup-func [validate? #t] [apply-func? #t])
   ;(printf "Parsing tfield ~a (~a); Lookup: ~a\n"
   ;        (tfield-label tf) (tfield-name tf) (lookup-func (tfield-name tf)))
   
@@ -669,7 +670,9 @@
      
      ; cleared result
      (define result/cleared (clear result))
-     (define return-result (extract&apply-args func new-args result))
+     (define return-result (if apply-func?
+                               (extract&apply-args func new-args result)
+                               '(failure #f)))
      
      ;;(printf "ret-res: ~s validate? ~s\n" return-result validate?)
      
@@ -1066,7 +1069,7 @@
  (value->tfield (-> tfield? any/c (or/c #f tfield?)))
  
  (parse (->* (tfield? (-> string? (or/c #f string?)))
-             (boolean?) tfield?))
+             (boolean? boolean?) tfield?))
  (validate (-> tfield? tfield?))
  
  (update-named (-> tfield? string? (-> tfield? tfield?) (or/c #f tfield?)))

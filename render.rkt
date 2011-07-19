@@ -84,7 +84,7 @@
 ; div-wrapper: (listof symbol) -> [(listof xexpr) -> (or xexpr (listof xexpr))]
 ; produces (λ(inner) `(div ([id [<name>-div"] [class "symbol ..."]) ,@inner)
 (define ((div-wrapper name classes) inner)
-  `(div ([id ,(format "~a-div" name)]
+  `(div (,@(if name `([id ,(format "~a-div" name)]) '())
          [class ,(string-join (map symbol->string classes) " ")])
         ,@(if (xexpr? inner) (list inner) inner)))
 
@@ -207,7 +207,8 @@
 ; render-basic/disp : string (listof symbol) (or #f string) 
 ;                           (or xexpr (listof xexpr)) -> xexpr
 (define (render-basic/disp name classes label content)
-  ((div-wrapper name `(tfield tfield-basic ,@classes))
+  ((div-wrapper #f  ;; don't give id to display'ed divs
+    `(tfield tfield-basic ,@classes))
    (list (if label `(span ([class "label"]) ,(colonize label)) "")
          `(span ,@(if (xexpr? content) (list content) content)))))
       
@@ -236,26 +237,26 @@
                         (if (equal? value "") "-"
                             (or value "-")))]
     [(tfield/struct label name error constr args)
-     ((div-wrapper name '(tfield tfield-structure))
+     ((div-wrapper #f '(tfield tfield-structure))
       `(fieldset (legend ,(colonize label))
                  (ul ,@(map (λ(a) `(li ,a)) (render*/disp args tf)))))]
     [(tfield/oneof label name error options chosen)
      (define selected-tf (and chosen (list-ref options chosen)))
      (cond
        [(not selected-tf) 
-        ((div-wrapper name `(tfield tfield-oneof))
+        ((div-wrapper #f `(tfield tfield-oneof))
          `(span "(" ,label " not selected)"))]
        [else 
-        ((div-wrapper name `(tfield tfield-oneof))
+        ((div-wrapper #f `(tfield tfield-oneof))
          (render/disp selected-tf tf))])]
     [(tfield/listof label name error base elts non-empty?)
-     ((div-wrapper name `(tfield tfield-listof))
+     ((div-wrapper #f `(tfield tfield-listof))
       `(fieldset (legend ,(colonize label))
                  ,(if (empty? elts) 
                       "(empty)"
                       `(ol ,@(map (λ(a) `(li ,a)) (render*/disp elts tf))))))]
     [(tfield/function title name error text func args result)
-     `(span ([id ,name]) "")]
+     `(span () "")]
     [_ (error (object-name render/disp)
               (format "somehow got an unknown field type: ~a" tf))]))
 

@@ -13,7 +13,6 @@ return json;
 var BASE_URL = window.location.pathname;
 
 
-
 /**************************************************************/
 /* initialization upon load */
 $(function() {
@@ -85,7 +84,8 @@ function onPageLoad() {
 	$("#exit-server").button({icons: {primary: "ui-icon-power"}});
 	
 	// button handlers	
-	$("#apply-input-button").click(makeRequestFunc("apply-input", true));
+	$("#apply-input-button").click(makeRequestFunc("apply-input", true, true, 
+									{ onStart: $.blockUI, onComplete: $.unblockUI }));
 	$("#clear-input-button").click(makeRequestFunc("clear-input", true));
 	$("#save-input-button").click(makeRequestFunc("save-input", true));
 	$("#edit-again-button").click(function() { resultTabState(false, 1); $("body").scrollTop(0); });
@@ -95,7 +95,8 @@ function onPageLoad() {
 	var selvalfunc = function() {return {name: $("#history-select").val()}};
 	$("#history-select").change(makeRequestFunc("preview-saved", selvalfunc, false));
 	$("#load-save-edit").click(makeRequestFunc("load-saved-edit", selvalfunc, false));
-	$("#load-save-apply").click(makeRequestFunc("load-saved-apply", selvalfunc, false));
+	$("#load-save-apply").click(makeRequestFunc("load-saved-apply", selvalfunc, false,
+												{ onStart: $.blockUI, onComplete: $.unblockUI }));
 	$("#delete-one-save").click(makeRequestFunc("remove-saved-one", selvalfunc, false));
 	$("#delete-all-save").click(makeRequestFunc("remove-saved-all",
 										function() { return ($("#loosematch").is(":checked"))
@@ -115,11 +116,19 @@ function onPageLoad() {
 }
 
 /* type : string, params : object, sendFormData : boolean */
-function makeRequest( type, params, sendFormData ) {
-	return makeRequestFunc(type, params, sendFormData)();
+function makeRequest( type, params, sendFormData, myops ) {
+	return makeRequestFunc(type, params, sendFormData, myops)();
 }
 
-function makeRequestFunc( type, params, sendFormData ) {
+/* myops is an object with options for this function:
+{ onStart : function() { ... }
+  onComplete: function() { ... }
+}
+
+- sendFormData is 'true' by default (if undefined)
+- possible to only supply type and sendFormData arguments
+*/
+function makeRequestFunc( type, params, sendFormData, myops ) {
 	return function() {
 		if (sendFormData == undefined) { 
 			if (params == true || params == false) {
@@ -132,11 +141,14 @@ function makeRequestFunc( type, params, sendFormData ) {
 							   (typeof params == 'function' ? params() : params));
 		if (sendFormData) thedata = addFormData(thedata);
 
-		console.log("request: " + type + "\ncont-url: " + CONT_URL + "\nthedata: "); 
-		console.log(thedata);
+		//console.log("request: " + type + "\ncont-url: " + CONT_URL + "\nthedata: "); 
+		//console.log(thedata);
+		if (myops && myops.onStart) { myops.onStart(); }
 		return $.ajax({url: CONT_URL, 
 					   data: thedata,
-					   error: ajaxErrorHandler
+					   error: ajaxErrorHandler,
+					   complete: function() { if (myops && myops.onComplete) 
+					   							myops.onComplete(); }
 					   }); 
 	};
 }

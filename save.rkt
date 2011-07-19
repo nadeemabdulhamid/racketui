@@ -226,7 +226,8 @@
                 (struct-copy tfield/function tf
                              [args (map unify-data-expr/tfield args (rest de))] 
                              [result (clear result)])])
-           (or (apply-tfield/function new-tf) new-tf)) ; try to fill in result
+           new-tf)   ;; DO NOT try to fill in result
+           ;;(or (apply-tfield/function new-tf) new-tf)) ; try to fill in result
          (clear tf))]
     [_ (error 'unify-data-expr/tfield (format "somehow got an unknown field type: ~a" tf))]))
 
