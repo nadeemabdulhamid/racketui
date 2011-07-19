@@ -107,8 +107,8 @@ function onPageLoad() {
 	$("#select-save-next").click(function() { goNextSaved(); return false; });
 	$(document).keydown(function (event) {
 		if ($("#tabs").tabs( "option", "selected" ) == 0) {
-			if (event.keyCode == 39) { goNextSaved(); }
-			else if (event.keyCode == 37) { goPreviousSaved(); }
+			if (event.keyCode == 39) { goNextSaved(); return false; }
+			else if (event.keyCode == 37) { goPreviousSaved(); return false; }
 		}
 	});
 
