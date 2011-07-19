@@ -1,10 +1,11 @@
 #lang setup/infotab
 
 (define name "RacketUI")
-(define version "0.5")
+(define version "0.5.1")
 (define release-notes
   (list '(ul
-          (li "First public release"))))
+          (li "Tweaked function application")
+          (li "Tweaked save display and browsing"))))
 (define repositories
   (list "4.x"))
 (define blurb
