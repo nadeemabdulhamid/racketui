@@ -140,7 +140,7 @@
 (struct event (type binding-function))
 
 
-; event-binding : event string -> (or #f string (list string<name> bytes<content>))
+; event-binding : event string -> LOOKUP-FUNC (see tfield:parse)
 (define (event-binding e key)
   ((event-binding-function e) key))
 
@@ -157,7 +157,9 @@
     (match (bindings-assq (string->bytes/utf-8 key) bindings)
       [(? binding:form? (binding:form _ value))
        (bytes->string/utf-8 value)]
-      ; TODO: ? binding:file
+      [(? binding:file? _ filename headers content)
+       ;; TODO: extract content-type header if exists...
+       (list (string->bytes/utf-8 filename) #f content)] 
       [_ #f]))
   
   (match (bindings-assq #"requesttype" bindings)
@@ -194,7 +196,7 @@
     
     ['load-saved-apply
      (define loaded-tf (load-tfield tf (event-binding ev "name")))
-     (if (not loaded-tf) (clear tf) (validate loaded-tf))]
+     (if (not loaded-tf) (clear tf) (validate loaded-tf #t))]
     
     ['remove-saved-one 
      (remove-save-file tf (event-binding ev "name"))

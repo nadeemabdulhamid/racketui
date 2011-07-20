@@ -4,6 +4,7 @@
          rackunit/gui
          rackunit/text-ui
          "../tfield.rkt")  
+(require 2htdp/batch-io)  ; for tfield/file tests
 
 ;; TODO: tests for (clear) are lacking...
 ;; TODO: tests exercising tfield/listof with  non-empty?
@@ -63,6 +64,10 @@
                                  (list (tfield/number "num" "c" #f #f #f)
                                        (tfield/string "str" "d" #f #f #f))
                                  1))
+     (check-equal? (new-tfield/file "names file" "names.dat" #f
+                                    "/var/tmp/names123.dat" #:name "tfile")
+                   (tfield/file "names file" "tfile" #f
+                                "names.dat" #f "/var/tmp/names123.dat"))
      (check-exn exn:fail? (λ() (new-tfield/oneof "num or str"
                                                  (list (new-tfield/number "num" #:name "c")
                                                        (new-tfield/string "str" #:name "d"))
@@ -99,6 +104,111 @@
      )))
 
 
+(define tfield/file-tests
+  (test-suite
+   "Tests for tfield/file"
+   (let* ([temp-file-name (make-temporary-file)]
+          [touch-file (λ() (write-to-file "hi" temp-file-name 
+                                          #:exists 'truncate/replace))]
+          [tf1 (new-tfield/file "name file" "names.dat" #f "/var/tmp/n123.txt"
+                                #:name "a")]
+          [tf2 (new-tfield/file "name file" "names.dat" "text/plain"
+                                temp-file-name #:name "b")]
+          [tf3 (new-tfield/file "name file" #f #f #f #:name "b" 
+                                #:error ERRMSG/NO-FILE)]
+          
+          ; line-counter : file-name -> number
+          [line-counter
+           (λ(file-name) (length (read-lines file-name)))]
+          
+          ; reverser : file-name number -> file-name
+          ; reverses any lines in input file longer than min-len, writes to output
+          [reverser
+           (λ(file-name min-len)
+             (write-file
+              (string-append file-name "-output.txt")
+              (string-join
+               (map (λ(ln) (if (>= (length (string->list ln)) min-len)
+                               (list->string (reverse (string->list ln)))
+                               ln))
+                    (read-lines file-name))
+               "\n")))]
+          
+          [tf/lc (new-tfield/function "Line Counter"
+                                      "Counts number of lines in given text file"
+                                      line-counter
+                                      (list (new-tfield/file "data file" #f #f #f
+                                                             #:name "a"))
+                                      (new-tfield/number "Number of lines"
+                                                         #:name "b"))]
+          [tf/rev (new-tfield/function
+                   "Reverser" "da de dah..."
+                   reverser
+                   (list (new-tfield/file "data file" #f #f #f #:name "a")
+                         (new-tfield/number "Min line length" #:name "c"))
+                   (new-tfield/file "output file" #f #f #f #:name "z"))]
+
+          [lookup (λ(n) (match n 
+                          ["a" (list "data.txt" #f #"abc\ndefzzz\ngehgd\nijkh\nlmn")]
+                          ["c" "5"]
+                          [_ #f]))]
+          [tf/lc-parsed (parse tf/lc lookup)]
+          [tf/rev-parsed (parse tf/rev lookup)]
+          )
+     
+     ; parse -- tests parsing, materializing files, and applying function
+     (check-equal? (tfield/function-result tf/lc-parsed)
+                   (new-tfield/number "Number of lines" 5 "5" #:name "b"))
+     (clear tf/lc-parsed)  ; delete temp file
+     
+     (check-equal? (tfield/function-result tf/rev-parsed)
+                   (new-tfield/file "output file" "data.txt-output.txt" #f
+                                    (tfield/file-temp-path
+                                     (tfield/function-result tf/rev-parsed)) 
+                                    #:name "z"))
+     (delete-file "data.txt-output.txt")
+     (clear tf/rev-parsed)
+     (clear (tfield/function-result tf/rev-parsed))  ; get rid of temp output file
+     
+     ; any-error?, clear
+     (check-false (any-error? tf1))
+     (check-true (any-error? tf3))
+     
+     (check-equal? (clear tf1)
+                   (new-tfield/file "name file" #f #f #f #:name "a"))
+     (check-equal? (clear tf3)
+                   (new-tfield/file "name file" #f #f #f #:name "b" #:error #f))
+     
+     (check-false (filled? tf1))
+     (check-true (filled? tf2))
+     (check-false (filled? (clear tf2)))
+     (touch-file)  ; bring it back from the previous clear
+     
+     (check-equal? (tfield->value tf2) "names.dat")
+     (check-exn exn:fail? (λ() (tfield->value tf1))) ; file doesn't exist
+     (check-exn exn:fail? (λ() (tfield->value tf3)))
+     
+     (check-false (value->tfield tf1 "hi.xyz"))
+     (let ([tf1new (value->tfield tf1 (path->string temp-file-name))])
+       (check-equal? tf1new
+        (new-tfield/file "name file" (path->string temp-file-name)
+                         #f (tfield/file-temp-path tf1new) 
+                         #:name "a"))
+       (clear tf1new))
+     
+     (check-equal? (rename/deep tf2 "z")
+                   (new-tfield/file "name file" "names.dat" "text/plain"
+                                    temp-file-name #:name "z"))
+     (check-equal? (validate tf2) tf2)
+     (check-equal? (validate tf1)
+                   (new-tfield/file "name file" #f #f #f
+                                    #:name "a" #:error ERRMSG/NO-FILE))
+     
+     (when (file-exists? temp-file-name)
+       (delete-file temp-file-name))
+     )))
+
+
 (define tfield/number-tests
   (test-suite
    "Tests for tfield/number"
@@ -109,7 +219,7 @@
          
          [f  (λ(n) (match n ["a" "9"] ["b" "hf"] [_ #f]))]
          )
-     ; clear
+     ; cleart
      (check-equal? (clear tfn4) 
                    (new-tfield/number "a num" #:name (tfield-name tfn4)))
      
@@ -769,6 +879,7 @@
    tfield/string-tests
    tfield/symbol-tests
    tfield/boolean-tests
+   tfield/file-tests
    tfield/struct-tests
    tfield/oneof-tests
    tfield/listof-tests

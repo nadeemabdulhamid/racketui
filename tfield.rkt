@@ -16,6 +16,7 @@
     number
     string (empty/non-empty)
     symbol
+    file   (intended to work with 2htdp/batch-io teachpack)
     structure (must be #:transparent, because of use of struct->vector)
     one-of (union of types)
     list-of
@@ -26,6 +27,26 @@
 ;; TODO: clean up tfield/struct case of value->tfield -- several weird things
 ;;       there to account for apparent BSL behavior with structs ???
 
+
+#|
+Implementation Notes and Subtleties:
+
+ For tfield/file, the following procedures create a new temporary file
+ upon successful execution:
+   - value->tfield
+   - parse (if given bytes? file content -- see LOOKUP-FUNC below)
+ The following delete the temporary file upon execution:
+   - clear
+ The following attempt to create and delete files in the current directory:
+   - materialize-input-files
+   - purge-input-files
+   These two are called from extract&apply-args.
+
+
+ For tfield/function, an attempt is made to apply the function in the
+ following procedures/circumstances:
+   - TODO.... (list out) .....
+|#
 
 ;;=============================================================================
 ;;=============================================================================
@@ -51,6 +72,7 @@
 (struct tfield/struct tfield (constr args) #:transparent)
 (struct tfield/oneof tfield (options chosen) #:transparent)
 (struct tfield/listof tfield (base elts non-empty?) #:transparent)
+(struct tfield/file tfield (file-name mime-type temp-path) #:transparent)
 (struct tfield/function tfield (text func args result) #:transparent)
 ;; label of the function to be used as page title/header when rendered
 
@@ -132,6 +154,8 @@
   (derive-tfield-constructor tfield/oneof options [chosen #f]))
 (define new-tfield/listof
   (derive-tfield-constructor tfield/listof base [elts empty] [non-empty? #f]))
+(define new-tfield/file
+  (derive-tfield-constructor tfield/file file-name mime-type temp-path))
 (define new-tfield/function  ; label is title
   (derive-tfield-constructor tfield/function text func args result))
 
@@ -153,6 +177,8 @@
     [(tfield/symbol label name error value)
      #f]
     [(tfield/string label name error value non-empty?)
+     #f]
+    [(tfield/file label name error file-name mime-type temp-path)
      #f]
     [(tfield/struct label name error constr args)
      #f]
@@ -191,6 +217,8 @@
      (true? error)]
     [(tfield/boolean label name error value)
      (true? error)]
+    [(tfield/file label name error file-name mime-type temp-path)
+     (true? error)]
     [(tfield/struct label name error constr args)
      (or (true? error)
          (ormap any-error? args))]
@@ -215,6 +243,7 @@
 
 ; clear : tfield -> tfield
 ; clears out any user-entered values (or function results) and error in the field
+; * for tfield/file, if the temp-path file exists, it will be deleted
 
 (define (clear tf)
   (match tf
@@ -228,6 +257,10 @@
      (tfield/symbol label name #f #f)]
     [(tfield/boolean label name error value)
      (tfield/boolean label name #f #f)]
+    [(tfield/file label name error file-name mime-type temp-path)
+     (when (and temp-path (file-exists? temp-path))
+       (delete-file temp-path))
+     (tfield/file label name #f #f #f #f)]
     [(tfield/struct label name error constr args)
      (tfield/struct label name #f constr (map clear args))]
     [(tfield/oneof label name error options chosen)
@@ -265,6 +298,11 @@
      (and (string? value)
           (not (and non-empty? (string=? value ""))))]
     
+    [(tfield/file label name error file-name mime-type temp-path)
+     (and (string? file-name) 
+          (path-string? temp-path)
+          (file-exists? temp-path))]
+    
     [(tfield/struct label name error constr args) (andmap filled? args)]
     
     [(tfield/oneof label name error options chosen)
@@ -293,10 +331,10 @@
 ; tfield->value : tfield -> any
 ; extracts the data value from the tfield, stripping away the tfield wrappers
 ; *** raises an error if filled? is false
+; for a file, simply returns the file-name of the field (not the temp-path)
 ; for a function, it extracts data value from the result tfield; but note, it
 ;   doesn't actually apply the function to the extracted args -- assumes that
 ;   has been previously done
-
 (define (tfield->value tf)
   (if (filled? tf)
       (match tf
@@ -310,6 +348,8 @@
          value]
         [(tfield/boolean label name error value)
          value]
+        [(tfield/file label name error file-name mime-type temp-path)
+         file-name]
         [(tfield/struct label name error constr args)
          ;; TODO: this assumes constructor application doesn't raise 
          ;;       contract/type error?
@@ -336,8 +376,10 @@
 ; the tfield if possible. If succeeds, it produces a new tfield object with
 ; value fields overwritten with the given value
 ;
+; for a file, expects a string, which should be the name of a file in
+;   the current directory; it makes a temporary copy of the file for itself
 ; for a function tfield, unifies a list of arguments with the argument tfields
-; and clears out the result
+;   and clears out the result
 
 (define (value->tfield tf v)
   (match tf
@@ -365,6 +407,14 @@
     [(tfield/boolean label name error value)
      (and (boolean? v)
           (struct-copy tfield/boolean tf [value v]))]
+    
+    [(tfield/file label name error file-name mime-type temp-path)
+     ;; note: we don't delete the previous file if there is one...
+     (and (file-exists? v) (string? v)
+          (tfield/file label name error 
+                       v #f (make-temporary-file "mztmp~a" v)))] 
+    ; copy v to a temp file (is this being too cautious?) <-- TODO: evaluate
+    
     
     [(tfield/struct label name error constr args)
      (define struct-args (cdr (vector->list (struct->vector v))))   
@@ -453,6 +503,9 @@
     [(tfield/boolean label name error value)
      (tfield/boolean label new-name error value)]
     
+    [(tfield/file label name error file-name mime-type temp-path)
+     (tfield/file label new-name error file-name mime-type temp-path)]
+
     [(tfield/struct label name error constr args)
      (tfield/struct label new-name error constr (rename/deep* args new-name))]
     
@@ -488,16 +541,18 @@
 ;  tfield and then tries to parse based on that -- i.e. it re-parses
 ;  itself, and fills in errors)
 
-(define (validate tf) 
+(define (validate tf [apply-func #f]) 
   (define (lookup-func name)  ; string -> #f or string
     (match (find-named tf name)
       [#f #f]
-      [(tfield/const label name error value)            (format "~a" value)]
+      [(tfield/const label name error value) (format "~a" value)]
       [(tfield/number label name error value raw-value) raw-value]
       [(tfield/string label name error value non-empty?) value]
       [(tfield/symbol label name error value)
        (and value (symbol->string value))]
-      [(tfield/boolean label name error value)          (and value "on")]
+      [(tfield/boolean label name error value) (and value "on")]
+      [(and tf/f (tfield/file label name error file-name mime-type temp-path))
+       (and (filled? tf) (list file-name mime-type temp-path))]
       [(tfield/struct label name error constr args)     #f]
       [(tfield/oneof label name error options chosen)   
        (and chosen (number->string chosen))]
@@ -507,16 +562,36 @@
       [_ (error (object-name validate)
                 (format "somehow got an unknown field type: ~a" tf))]
       ))
-  (parse tf lookup-func #t))
+  (parse tf lookup-func #t apply-func))
+
+
+;; This is the type of a "lookup-func" for parse purposes:
+;;
+;; LOOKUP-FUNC :  string -> 
+;;                -> (or/c #f string? (list/c string? (or/c #f string?)
+;;                                                (or/c path-string? bytes?)))
+;;
+;; Namely, it's a function that maps a string key value to a 
+;; string data value, or a triple of <fileneame> <mimetype> <content/path> 
+;; representing file upload data, or #f if no mapping exists for the key.
+;; For files, if the third element of the triple is a bytes?, it represents
+;; the actual content of the file; if it is a path-string? then it 
+;; represents the path to an existing temporary file, to be reused (this is 
+;; useful for validate)
 
 
 
 
-; parse : tfield (string -> #f or string) [boolean] -> tfield
+
+; parse : tfield LOOKUP-FUNC [boolean] [boolean] -> tfield
 ; given a lookup function from tfield names to raw string values, attempts to
 ; parse and validate values according to the tfield, filling in the error
 ; if necessary
 ;
+; for a file tfield, if the lookup function produces bytes?, then a new
+;  temporary file is created and the content written to it; otherwise 
+;  the tfield/file just uses the provided path-string? of the lookup-func
+;  as the temp-path
 ; for a function tfield, parses all the argument tfields, *that are not 
 ;  tfield/function's in themselves*, then it strips
 ;  the arguments for their values, attempts to apply the function (if
@@ -525,6 +600,7 @@
 ;  error if that is not successful (i.e. if exception occurs either 
 ;  with tfield->value or when the function is actually applied)
 
+(define ERRMSG/NO-FILE "Must select an input file")
 (define ERRMSG/NOT-FILLED "Must be filled in")
 (define ERRMSG/NOT-EMPTY "Cannot be empty")
 (define ERRMSG/NOT-NUMBER "Should be a number")
@@ -591,6 +667,23 @@
                      #f   ;; cannot distinguish missing from not selected 
                      ;; with HTMLform submission
                      (and (string? v) (string=? v "on")))]
+    
+    ;; ---- TFIELD/FILE ----
+    [(tfield/file label name error file-name mime-type temp-path)
+     (define v (lookup-func name))
+     (cond
+       [(not (list? v))
+        (tfield/file label name (if validate? ERRMSG/NO-FILE error)
+                     #f #f #f)]
+       [(path-string? (third v))   ; existing temp-path
+        (tfield/file label name #f (first v) (second v) (third v))]
+       [(bytes? (third v))   ; raw-content
+        (define temp-file (make-temporary-file))
+        (with-output-to-file temp-file
+          (λ() (write-bytes (third v)))
+          #:exists 'truncate/replace)
+        (tfield/file label name #f (first v) (second v) temp-file)])]
+     
     
     ;; ---- TFIELD/STRUCT ----
     [(tfield/struct label name error constr args)
@@ -723,8 +816,11 @@
         (with-handlers ([exn? (λ(x) #;(pretty-print x)            
                                 ;; or if exn, apply-result = '(failure ...)
                                 `(failure ,(exn-message x)))])
-          (list 'success  ;; otherwise, apply-result = '(success <ret-value>)
-                (apply func (map tfield->value args))))))
+          (if (andmap materialize-input-files args) ; attempt to setup files
+              (let ([ret-val (apply func (map tfield->value args))])
+                (andmap purge-input-files args)
+                (list 'success ret-val))
+              (list 'failure "A problem occurred with the input file(s)")))))
   
   (define result-good? (symbol=? (first return-value) 'success))
   
@@ -745,6 +841,77 @@
   )
 
 
+;; materialize-input-files : tfield -> boolean
+;; processes the tfield and all its subtfields, copying the temporary
+;;  file from any tfield/file instances into a file in the current
+;;  directory with file-name, unless file already exists (error), or
+;;  file-name and temp-path are the same (ignore)
+;; returns #t if successful, #f if error occurred (or raises
+;;  an exception)
+;;
+;; NOTE: does not process *any* of the sub-fields of a tfield/function
+;; TODO: handle this ^^^^ better
+;;
+(define (materialize-input-files tf)
+  (match tf
+    [(or (? tfield/const? _) (? tfield/number? _)
+         (? tfield/string? _) (? tfield/boolean? _)
+         (? tfield/symbol? _))
+     #t]
+
+    [(tfield/file label name error file-name mime-type temp-path)
+     (if (and file-name temp-path)
+         (cond
+           [(equal? file-name (path->string temp-path))
+            #t]    ; nothing to do -- file already in place
+           [else (copy-file temp-path file-name)])
+         #f)]   ; file missing
+
+    [(tfield/struct label name error constr args)
+     (andmap materialize-input-files args)]
+    [(tfield/oneof label name error options chosen)
+     (and chosen (materialize-input-files (list-ref options chosen)))]
+    [(tfield/listof label name error base elts non-empty?)
+     (andmap materialize-input-files elts)]
+    [(tfield/function title name error text func args result)
+     #t]     ;; handle this better
+    [_ (error (object-name materialize-input-files)
+              (format "somehow got an unknown field type: ~a" tf))]))
+
+
+
+;; purge-input-files : tfield -> boolean
+;; undoes the work of materialize-input-files, by deleting files in 
+;; the current directory, leaving in place those where temp-path = file-name
+;;
+;; NOTE: does not process *any* of the sub-fields of a tfield/function
+;; TODO: handle this ^^^^ better
+;;
+;; NOTE: this is a dangerous operation (because it deletes files)
+;;
+(define (purge-input-files tf)
+  (match tf
+    [(or (? tfield/const? _) (? tfield/number? _)
+         (? tfield/string? _) (? tfield/boolean? _)
+         (? tfield/symbol? _))
+     #t]
+    [(tfield/file label name error file-name mime-type temp-path)
+     (if (and file-name temp-path)
+         (cond
+           [(equal? file-name (path->string temp-path))
+            #t]    ; nothing to do -- file was already in place
+           [else (delete-file file-name)])
+         #f)]   ; file missing
+    [(tfield/struct label name error constr args)
+     (andmap purge-input-files args)]
+    [(tfield/oneof label name error options chosen)
+     (and chosen (purge-input-files (list-ref options chosen)))]
+    [(tfield/listof label name error base elts non-empty?)
+     (andmap purge-input-files elts)]
+    [(tfield/function title name error text func args result)
+     #t]     ;; handle this better
+    [_ (error (object-name purge-input-files)
+              (format "somehow got an unknown field type: ~a" tf))]))
 
 
 ;;=============================================================================
@@ -802,7 +969,7 @@
   (match tf
     [(or (? tfield/const? _) (? tfield/number? _)
          (? tfield/string? _) (? tfield/boolean? _)
-         (? tfield/symbol? _))
+         (? tfield/symbol? _) (? tfield/file? _))
      (and (string=? target-name (tfield-name tf)) (tf-func tf))]
 
     [(tfield/struct label name error constr args)
@@ -865,6 +1032,7 @@
     [(tfield/number label name error value raw-value) (proc tf init)]
     [(tfield/symbol label name error value) (proc tf init)]
     [(tfield/string label name error value non-empty?) (proc tf init)]
+    [(tfield/file label name error file-name mime-type temp-path) (proc tf init)]
     [(tfield/struct label name error constr args) 
      (proc tf (foldl (λ(f i) (fold f proc i)) init args))]
     [(tfield/oneof label name error options chosen)
@@ -951,7 +1119,8 @@
 
 
 (provide ERRMSG/NOT-FILLED ERRMSG/NOT-NUMBER ERRMSG/MISSING-INPUT
-         ERRMSG/SELECT-OPTION ERRMSG/FUNC-APP ERRMSG/MISMATCH)
+         ERRMSG/SELECT-OPTION ERRMSG/FUNC-APP ERRMSG/MISMATCH
+         ERRMSG/NO-FILE)
 
 (provide/contract
  
@@ -1006,6 +1175,13 @@
     (base   tfield?)
     (elts   (listof tfield?))
     (non-empty? boolean?))]
+ [struct (tfield/file tfield)
+   ((label (or/c #f string?))
+    (name   string?)
+    (error (or/c #f xexpr/c))
+    (file-name (or/c #f string?))
+    (mime-type (or/c #f string?))
+    (temp-path (or/c #f path-string?)))]
  [struct (tfield/function tfield)
    ((label  (or/c #f string?))
     (name   string?)
@@ -1021,42 +1197,49 @@
  (reset-name-counter (-> number? void))
  
  (new-tfield (->* ((or/c #f string?)) 
-                  (#:name string? #:error xexpr/c) 
+                  (#:name string? #:error (or/c #f xexpr/c)) 
                   tfield?))
  (new-tfield/const (->* ((or/c #f string?) any/c) 
-                        (#:name string? #:error xexpr/c)
+                        (#:name string? #:error (or/c #f xexpr/c))
                         tfield/const?))
  (new-tfield/boolean (->* ((or/c #f string?)) 
-                          (boolean? #:name string? #:error xexpr/c) 
+                          (boolean? #:name string? #:error (or/c #f xexpr/c))
                           tfield/boolean?))
  (new-tfield/number (->* ((or/c #f string?)) 
                          ((or/c #f number?) (or/c #f string?) 
-                                            #:name string? #:error xexpr/c) 
+                                  #:name string? #:error (or/c #f xexpr/c))
                          tfield/number?))
  (new-tfield/string (->* ((or/c #f string?)) 
                          ((or/c #f string?) boolean? 
-                                            #:name string? #:error xexpr/c) 
+                                  #:name string? #:error (or/c #f xexpr/c)) 
                          tfield/string?))
  (new-tfield/symbol (->* ((or/c #f string?)) 
-                         ((or/c #f symbol?) #:name string? #:error xexpr/c)
+                         ((or/c #f symbol?) #:name string?
+                                            #:error (or/c #f xexpr/c))
                          tfield/symbol?))
  (new-tfield/struct (->* ((or/c #f string?) procedure? (listof tfield?))
-                         (#:name string? #:error xexpr/c)
+                         (#:name string? #:error (or/c #f xexpr/c))
                          tfield/struct?))
  (new-tfield/oneof (->i ([label (or/c #f string?)] [options (listof tfield?)])
                         ([chosen (or/c #f natural-number/c)]
-                         #:name [name string?] #:error [error xexpr/c])
+                         #:name [name string?] 
+                         #:error [error (or/c #f xexpr/c)])
                         #:pre (options chosen) (or (not chosen) 
                                                    (unsupplied-arg? chosen)
                                                    (< chosen (length options)))
                         [_ tfield/oneof?]))
  (new-tfield/listof (->* ((or/c #f string?) tfield?)
-                         ((listof tfield?) boolean? #:name string? #:error xexpr/c)
+                         ((listof tfield?) boolean? #:name string?
+                         #:error (or/c #f xexpr/c))
                          tfield/listof?))
+ (new-tfield/file (->* ((or/c #f string?) (or/c #f string?) (or/c #f string?)
+                                          (or/c #f path-string?))
+                       (#:name string? #:error (or/c #f xexpr/c))
+                         tfield/file?))
  (new-tfield/function (->* ((or/c #f string?) 
                             (or/c string? (listof xexpr/c)) procedure?
                             (listof tfield?) tfield?)
-                           (#:name string? #:error xexpr/c)
+                           (#:name string? #:error (or/c #f xexpr/c))
                            tfield/function?))
  
  
@@ -1068,7 +1251,10 @@
  (tfield->value (-> tfield? any))
  (value->tfield (-> tfield? any/c (or/c #f tfield?)))
  
- (parse (->* (tfield? (-> string? (or/c #f string?)))
+ (parse (->* (tfield? 
+              (-> string?
+                  (or/c #f string? (list/c string? (or/c #f string?)
+                                           (or/c path-string? bytes?)))))
              (boolean? boolean?) tfield?))
  (validate (-> tfield? tfield?))
  
