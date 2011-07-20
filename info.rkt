@@ -8,6 +8,8 @@
           (li "Tweaked save display and browsing"))))
 (define repositories
   (list "4.x"))
+(define required-core-version
+  "5.1.2")
 (define blurb
   (list "Automated Web UI generator for student programs"))
 (define scribblings '(("scribblings/racketui.scrbl" ())))

@@ -27,7 +27,7 @@ omitted):
             [else (acronym (rest a-los))])]))
 ]
 
-An automatic web application for this can be generated using:
+A web application for this can be automatically generated using:
 
 @racketblock[
 (require (planet nah22/racketui))
