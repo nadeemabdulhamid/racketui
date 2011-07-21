@@ -329,8 +329,9 @@
                                             #:name "c")
                          (value->tfield ts1 "hello")))
      (check-equal? (tfield/function-result
-                    (unify-data-expr/tfield tf1 '(function (listof 3 2 1) "hello")))    
-                   (value->tfield to1 (samp-func '(3 2 1) "hello")))
+                    (unify-data-expr/tfield tf1 '(function (listof 3 2 1) "hello")))
+                   (clear to1))  ;; result is NOT filled in by unify-data-expr/tfield
+                   ;;(value->tfield to1 (samp-func '(3 2 1) "hello")))
      
      )))
 

@@ -263,7 +263,7 @@ Implementation Notes and Subtleties:
      (tfield/boolean label name #f #f)]
     [(tfield/file label name error file-name mime-type temp-path)
      (when (and finalize? temp-path (file-exists? temp-path))
-       (printf "deleting ~a\n" temp-path)
+       ;;;(printf "deleting ~a\n" temp-path)   ;; <<----- should be logged!!!
        (delete-file temp-path))
      (tfield/file label name #f #f #f #f)]
     [(tfield/struct label name error constr args)
@@ -1330,7 +1330,7 @@ Implementation Notes and Subtleties:
                   (or/c #f string? (list/c string? (or/c #f string?)
                                            (or/c #f path-string? bytes?)))))
              (boolean? boolean?) tfield?))
- (validate (-> tfield? tfield?))
+ (validate (->* (tfield?) (boolean?) tfield?))
  
  (update (-> tfield? (-> tfield? boolean?) (-> tfield? tfield?) (or/c #f tfield?)))
  (update-named (-> tfield? string? (-> tfield? tfield?) (or/c #f tfield?)))

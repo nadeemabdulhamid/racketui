@@ -166,7 +166,6 @@
                                     (tfield/file-temp-path
                                      (tfield/function-result tf/rev-parsed)) 
                                     #:name "z"))
-     (delete-file "data.txt-output.txt")
      (clear tf/rev-parsed)
      (clear (tfield/function-result tf/rev-parsed))  ; get rid of temp output file
      

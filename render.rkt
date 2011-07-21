@@ -82,6 +82,13 @@
               (format "somehow got an unknown field type: ~a" tf))]))
 
 
+
+; colonize : string -> string 
+; adds ": " to end of given string if it's not ""
+(define (colonize str)
+  (if (equal? str "") str (string-append str ": ")))
+
+
 ; div-wrapper: (listof symbol) -> [(listof xexpr) -> (or xexpr (listof xexpr))]
 ; produces (λ(inner) `(div ([id [<name>-div"] [class "symbol ..."]) ,@inner)
 (define ((div-wrapper name classes) inner)
@@ -108,28 +115,24 @@
                       (not (tfield/listof? parent))))
   (match tf
     [(tfield/file label name error file-name mime-type temp-path)
-     (cond
+     (define inner-content
+       (cond
        [(not file-name)  ; nothing uploaded
-        (render-basic/edit name '(tfield-file) (and label? label)
-                           `(input ([type "file"] [name ,name] [id ,name]))
-                           error)]
+        `(input ([type "file"] [name ,name] [id ,name]))]
        [(not temp-path)  ; notified of upload
-        (render-basic/edit name '(tfield-file) (and label? label)
-                  `(span ([class "uploading"])
-                         (img ([src "file-loading.gif"] [alt "file loading"]))
-                         "Uploading " ,file-name "... ")
-                  error)]
+        `(span ([class "uploading"])
+               (img ([src "file-loading.gif"] [alt "file loading"]))
+               "Uploading " ,file-name "... ")]
        [else
-        (render-basic/edit name '(tfield-file) (and label? label)
-                  `(span ([class "uploaded"])
-                         ;; see tfield.rkt: parse - tfield/file case about this
-                         (input ([type "hidden"] [id ,name] [name ,name]
-                                                 [value ,file-name]))
-                         ,(file-view-link name file-name)
-                         " " ,(file-clear-link name file-name) 
-                         )
-                  error)]
-       )]))
+        `(span ([class "uploaded"])
+               ;; see tfield.rkt: parse - tfield/file case about this
+               (input ([type "hidden"] [id ,name] [name ,name]
+                                       [value ,file-name]))
+               ,(file-view-link name file-name)
+               " " ,(file-clear-link name file-name) 
+               )]))
+     (render-basic/edit name '(tfield-file) (and label? label)
+                        inner-content error)]))
 
 ; render-listof : tfield/listof (or #f tfield) -> xexpr
 (define (render-listof/edit tf parent)
@@ -224,42 +227,17 @@
 ;; ============================================================================
 ;; render form elements for display
 
-; colonize : string -> string 
-; adds ": " to end of given string if it's not ""
-(define (colonize str)
-  (if (equal? str "") str (string-append str ": ")))
 
-; render*/disp : (listof tfield) (or #f tfield) -> (listof xexpr)
-(define (render*/disp tfs parent)
-  (map (λ(t) (render/disp t parent)) tfs))
+; render*/disp : (listof tfield) (or #f tfield) (or #f string) -> (listof xexpr)
+; renders fields for display purposes; if the rendering is for previewing
+;  a saved file, then save-file is the name of the save-file
+(define (render*/disp tfs parent [save-file #f])
+  (map (λ(t) (render/disp t parent save-file)) tfs))
 
-
-; render-basic/disp : string (listof symbol) (or #f string) 
-;                           (or xexpr (listof xexpr)) -> xexpr
-(define (render-basic/disp name classes label content)
-  ((div-wrapper #f  ;; don't give id to display'ed divs
-    `(tfield tfield-basic ,@classes))
-   (list (if label `(span ([class "label"]) ,(colonize label)) "")
-         `(span ,@(if (xexpr? content) (list content) content)))))
-      
-;; file-view-link : string (or/c #f string) -> xexpr
-(define (file-view-link name file-name)
-  (if file-name
-      `(a ([href ,name] [class "filelink"]
-           [onClick ,(format "viewFile('~a'); return false;" name)])
-          ,file-name)
-      "-"))
-
-;; file-clear-link : string string -> xexpr
-(define (file-clear-link name file-name)
-  `(button 
-    ([id ,(format "~a-clearbtn" name)] [class "fileclear"] 
-     [type "button"]
-     [onClick ,(format "clearFile('~a'); return false;" name)])
-      "remove"))
-
-; render/disp : tfield (or #f tfield) -> xexpr
-(define (render/disp tf parent)
+; render/disp : tfield (or #f tfield) (or #f string) -> xexpr
+; renders a field for display purposes; if the rendering is for previewing
+;  a saved file, then save-file is the name of the save-file
+(define (render/disp tf parent [save-file #f])
   (define parent-not-oneof? (not (tfield/oneof? parent)))
   (define parent-not-oneof/listof? (and (not (tfield/oneof? parent))
                                         (not (tfield/listof? parent))))
@@ -283,11 +261,11 @@
                             (or value "-")))]
     [(tfield/file label name error file-name mime-type temp-path)
         (render-basic/disp name '(tfield-file) (and parent-not-listof? label)
-                      (file-view-link name file-name))]
+                      (file-view-link name file-name save-file))]
     [(tfield/struct label name error constr args)
      ((div-wrapper #f '(tfield tfield-structure))
       `(fieldset (legend ,(colonize label))
-                 (ul ,@(map (λ(a) `(li ,a)) (render*/disp args tf)))))]
+                 (ul ,@(map (λ(a) `(li ,a)) (render*/disp args tf save-file)))))]
     [(tfield/oneof label name error options chosen)
      (define selected-tf (and chosen (list-ref options chosen)))
      (cond
@@ -296,17 +274,52 @@
          `(span "(" ,label " not selected)"))]
        [else 
         ((div-wrapper #f `(tfield tfield-oneof))
-         (render/disp selected-tf tf))])]
+         (render/disp selected-tf tf save-file))])]
     [(tfield/listof label name error base elts non-empty?)
      ((div-wrapper #f `(tfield tfield-listof))
       `(fieldset (legend ,(colonize label))
                  ,(if (empty? elts) 
                       "(empty)"
-                      `(ol ,@(map (λ(a) `(li ,a)) (render*/disp elts tf))))))]
+                      `(ol ,@(map (λ(a) `(li ,a)) (render*/disp elts tf save-file))))))]
     [(tfield/function title name error text func args result)
      `(span () "")]
     [_ (error (object-name render/disp)
               (format "somehow got an unknown field type: ~a" tf))]))
+
+
+; render-basic/disp : string (listof symbol) (or #f string) 
+;                           (or xexpr (listof xexpr)) -> xexpr
+(define (render-basic/disp name classes label content)
+  ((div-wrapper #f  ;; don't give id to display'ed divs
+    `(tfield tfield-basic ,@classes))
+   (list (if label `(span ([class "label"]) ,(colonize label)) "")
+         `(span ,@(if (xexpr? content) (list content) content)))))
+      
+
+;; file-view-link : string (or/c #f string) (or/c #f string) -> xexpr
+(define (file-view-link name file-name [save-file #f])
+  (define handler
+    (if save-file
+        (format "viewFile($(this), '~a', '~a'); return false;" name save-file)
+        (format "viewFile($(this), '~a'); return false;" name)))
+  (if file-name
+      `(a ([href ,file-name] [class "filelink"] [onClick ,handler]) ,file-name
+          (input ([type "hidden"] [class "id"] [value ,name]))
+          ,@(if save-file `((input ([type "hidden"] [class "savefile"]
+                                                    [value ,save-file]))) '()))
+      "-"))
+
+
+;; file-clear-link : string string -> xexpr
+(define (file-clear-link name file-name)
+  `(button 
+    ([id ,(format "~a-clearbtn" name)] [class "fileclear"] 
+     [type "button"]
+     [onClick ,(format "clearFile('~a'); return false;" name)])
+      "remove"))
+
+
+
 
 ;; ============================================================================
 

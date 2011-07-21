@@ -182,6 +182,7 @@
 
 (define (event-dispatch tf ev)
   (define lookup-func (curry event-binding ev))
+  ;;(printf "Event: ~a\n" (event-type ev)) (pretty-print tf)
   (match (event-type ev)
     
     ['refresh   ; logically only happens on the first view of the app
@@ -413,16 +414,32 @@
     
     ['file-view
      (define name (event-binding ev "name"))
-     (match (find-named tf name)
+     (define save-file (event-binding ev "savefile"))
+     (define tf-to-use (if save-file (load-tfield tf save-file) tf))
+     ;;;(printf "fileview: ~a ~a\n" name save-file)(pretty-print tf-to-use)
+     (match (find-named tf-to-use name)
        [(tfield/file _ _ _ file-name mime-type temp-path)
         (define data 
           (if (and temp-path (file-exists? temp-path))
               (file->bytes temp-path) #"File Missing"))
+        (define content-type (if mime-type (string->bytes/utf-8 mime-type)
+                                 #"text/plain"))
+        (define content-disp (if (regexp-match #rx"text/" 
+                                               (bytes->string/utf-8 content-type))
+                                 #"inline"
+                                 #"attachment"))
+        (when (not file-name) (pretty-print tf-to-use))
         (response/full 
          200 #"Okay" (current-seconds) 
-         (if mime-type (string->bytes/utf-8 mime-type)
-             #"text/plain")
-         empty (list data))])]
+         content-type
+         (list  ; headers
+          (header #"Content-Type" 
+                  (bytes-append content-type #"; name=\""
+                                (string->bytes/utf-8 file-name) #"\""))
+          (header #"Content-Disposition"
+                  (bytes-append content-disp #"; filename=\""
+                                (string->bytes/utf-8 file-name) #"\"")))
+         (list data))])]
     
     ['list-saved 
      (define loose-match? (equal? (event-binding ev "loosematch") "loosematch"))
@@ -432,12 +449,16 @@
      (define name (event-binding ev "name"))
      (define preview-tf (load-tfield tf name))
      (define args (and preview-tf (tfield/function-args preview-tf)))
-     `(taconite 
-       (html ([select "#save-preview"])
+     (define return-result
+       `(taconite 
+         (html ([select "#save-preview"])
              ,(if args
-                 `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f)))
+                 `(ul ,@(map (λ(x) `(li ,x)) (render*/disp args #f name)))
                  `(div "No data")))
-       ,cont-url-update/xexpr)]
+         (eval "fixFileLinks();")
+         ,cont-url-update/xexpr))
+     (when preview-tf (clear preview-tf))  ;; delete temp files
+     return-result]
     
     [(or 'remove-saved-one 'remove-saved-all)
      `(taconite (eval "populateSaved();"))]

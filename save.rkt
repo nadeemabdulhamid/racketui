@@ -175,7 +175,7 @@
     [(tfield/boolean label name errors value)
      value]
     [(tfield/file label name error file-name mime-type temp-path)
-     (list 'file #f #f #f)]   ; file-name mime-type temp-path
+     (list 'file file-name mime-type (and temp-path (path->string temp-path)))]
     [(tfield/struct label name errors constr args)
      (cons 'structure (map tfield->data-expr args))]
     [(tfield/oneof label name errors options chosen)
@@ -301,10 +301,24 @@
           (define data (read))
           (cond 
             [(not (= (length data) 4)) #f]
-            [else (unify-data-expr/tfield tf (fourth data))]
-            )))))
-;; TODO: move all temp-path tfield/file files to temporary directories
-;;   upon successful unification
+            [else 
+             (define unified-tf (unify-data-expr/tfield tf (fourth data)))
+             (define mig-tf
+               (and unified-tf (migrate-files-from-save unified-tf)))
+             ;(printf "Unified tf:\n") (pretty-print unified-tf)
+             ;(printf "Mig loaded tf:\n") (pretty-print mig-tf)
+             mig-tf])))))
+
+
+; uploads-dir-of-temp-file : path-string path-string -> path-string
+; determines the subdirectory (e.g. for uploaded files) corresponding
+; to the save file of given name
+(define (uploads-dir-of-temp-file save-dir file-path)
+  (build-path
+   save-dir
+   (let ([name-str (path->string (file-name-from-path file-path))])
+     (substring name-str    ; take off .sav extension
+                0 (- (string-length name-str) 4)))))
 
 
 ;; save-tfield : tfield [number] [boolean] -> path or #f
@@ -322,19 +336,52 @@
      (string-append (save-file-prefix tf #:timestamp timestamp
                                       #:usersave usersave?) "~a.sav")
      #f save-dir))
+  (define uploads-dir (uploads-dir-of-temp-file save-dir file-name))
+  (check/make-dir uploads-dir)  ; directory for uploaded files
+  
   (define write-thunk
     (λ()
-;; TODO: move all temp-path tfield/file files into a subdirectory for this save
-;;       and update the data-expr temp-path's accordingly
+      (define save-tf (migrate-files-to-save tf uploads-dir))
       (write (list timestamp
                    usersave?
-                   (tfield->skel-expr tf #t)
-                   (tfield->data-expr tf)))
+                   (tfield->skel-expr save-tf #t)
+                   (tfield->data-expr save-tf)))
       ))
   
   (with-output-to-file file-name write-thunk #:exists 'truncate)
   file-name
   )
+
+; migrate-files-to-save : tfield path-string -> tfield
+; move all temp-path tfield/file files into a subdirectory for this save
+; and update the data-expr temp-path's accordingly
+; BEWARE: (current-output-port) when this procedure is used is a file
+(define (migrate-files-to-save tf uploads-dir)
+  (update tf tfield/file?
+   (λ(tf)
+     (define temp-path (tfield/file-temp-path tf))
+     (define new-temp-path
+       (and temp-path (file-exists? temp-path)
+            (make-temporary-file "~a.sav" temp-path uploads-dir)))
+     (struct-copy tfield/file tf [temp-path new-temp-path]))))
+
+
+; migrate-files-from-save : tfield -> tfield
+; move all temp-path tfield/file files to temporary directories
+; upon successful unification
+(define (migrate-files-from-save tf)
+  (update tf tfield/file?
+   (λ(tf)
+     (define temp-path (tfield/file-temp-path tf))
+     (define new-temp-path
+       (and temp-path (file-exists? temp-path)
+            (make-temporary-file "mztmp~a" temp-path)))
+     (struct-copy tfield/file tf [temp-path new-temp-path]))))
+
+
+
+
+
 
 
 
@@ -348,9 +395,11 @@
     (cond [(not (directory-exists? save-dir)) empty]
           [loose-match? (directory-list save-dir)]
           [else 
-           (define all-files (directory-list save-dir))
+           (define all-sav-files 
+             (filter (λ(f) (equal? #"sav" (filename-extension f)))
+                     (directory-list save-dir)))
            (define tf-hash (tfield-hash tf #t))
-           (filter (λ(f) (= tf-hash (hash-of/tfield-file f))) all-files)
+           (filter (λ(f) (= tf-hash (hash-of/tfield-file f))) all-sav-files)
            ]))
   (map (compose path->string file-name-from-path) file-paths))
   
@@ -471,6 +520,11 @@
 (define (remove-save-file tf file-name)
   (define save-dir (build-path TEMP-DIR-BASE (save-directory-name tf)))
   (define file-path (build-path save-dir file-name))
+  (define uploads-dir (uploads-dir-of-temp-file save-dir file-path))
+  (when (directory-exists? uploads-dir)
+    (for ([file (directory-list uploads-dir)])
+      (delete-file (build-path uploads-dir file)))
+    (delete-directory uploads-dir))
   (when (file-exists? file-path) (delete-file file-path)))
 
 

@@ -199,6 +199,9 @@ function resultTabState(enabled, selectOther) {
 function refreshElements(parentSelector) {
 	var selpref = parentSelector ? parentSelector+" " : "";
 
+	//
+	fixFileLinks();   // processes the entire DOM
+
 	// restore sortable lists
 	if ($(selpref+".sortable").length) {
 		$(selpref+".sortable").sortable({handle: ".li-handle", items: "li:not(.nosort)"});
@@ -221,10 +224,9 @@ function refreshElements(parentSelector) {
 	var inputs = $(selpref+"input");
 	for (var i = 0; i < inputs.length; i++) {
 		var inp = $(inputs[i]);
-		if (inp.attr('type') != 'file') {  // non-file input elts
-			inp.change(makeRequestFunc("update-field",
-									{name: inp.attr('name')}));
-		} else {   // file input elts
+		if (inp.attr('type') == 'hidden') {  // completely ignore
+		   // do nothing
+		} else if (inp.attr('type') == 'file') {   // file input elts
 			var id = inp.attr('id');
 			inp.change(makeRequestFunc("notify-upload", 
 							function() { return {
@@ -232,10 +234,31 @@ function refreshElements(parentSelector) {
 											filename: $('#'+id).val()
 										};}, 
 							false));
-		}
+		} else {  // non-file input elts
+			inp.change(makeRequestFunc("update-field",
+									{name: inp.attr('name')}));
+		} 
 	}
 }
 
+
+/* a bit of a hack to get all the href's of <a ...> tags around
+   file download links set so that on a right-click-and-save they
+   actually work! */
+function fixFileLinks() {
+	// fix address in all file download anchors
+	var filelinks = $("a.filelink");
+	///console.log("found " + filelinks.length + " file links");
+	for (var i = 0; i < filelinks.length; i++) {
+		var lnk = $(filelinks[i]);
+		var id = lnk.find("input.id").val();
+		var savefile;
+		if (lnk.find("input.savefile")) {   // inner hidden input
+			savefile = lnk.find("input.savefile").val();
+		}
+		lnk.attr('href', urlForViewFile(id, savefile));
+	}
+}
 
 
 /**************************************************************/
@@ -271,11 +294,22 @@ function onUpload(id) {
 	});
 }
 
+
+/* produces a url for downloading a file */
+function urlForViewFile(tfieldid, savefilename) {
+	var data = {requesttype: "file-view", name: tfieldid};
+	if (savefilename) 
+		$.extend(data, {savefile: savefilename});
+	var requrl = CONT_URL + '?' + $.param(data);
+	return requrl;
+}
+
+
 /* opens a file for user to see */
-function viewFile(tfieldid) {
-	console.log('view file: ' + tfieldid);
-	$.open.newWindow(CONT_URL + '?' + $.param({requesttype: "file-view", 
-											   name: tfieldid}), {});
+function viewFile(elt, tfieldid, savefilename) {
+	var requrl = urlForViewFile(tfieldid, savefilename);
+	//console.log(requrl);
+	$.open.newWindow(requrl, {});
 	return false;
 }
 
