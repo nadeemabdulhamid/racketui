@@ -29,6 +29,7 @@
              |  string
              |  symbol
              |  string+
+             |  filename
 
              |  (function <string> (<proc> <lab-spec> ... -> <lab-spec>))
              |  (structure <constr> <lab-spec> ...+)
@@ -78,7 +79,7 @@
   (define-syntax-class all-types
     (pattern (~and header
                    (~or (~datum number) (~datum boolean) (~datum string)
-                        (~datum string+) (~datum symbol)
+                        (~datum string+) (~datum symbol) (~datum filename)
                         (~datum constant) (~datum structure) (~datum check)
                         (~datum oneof) (~datum listof) (~datum listof+)
                         (~datum function)))))
@@ -95,8 +96,9 @@
 
     ;; this first is an error condition
     [pattern x:all-types #:attr output
-             (raise-syntax-error #f (format "expected a pair of a label and a type specification surrounded by parens instead of ~s" (syntax->datum #'x))
-                                 #'x )]
+             (raise-syntax-error 
+              #f (format "expected a pair of a label and a type specification surrounded by parens instead of ~s" (syntax->datum #'x))
+              #'x )]
 
     ;; these two are the expected behavior
     [pattern (lab:str spc) #:attr output #'(list lab (web-spec spc))]
@@ -108,9 +110,10 @@
     
     ;; these capture error conditions...
     [pattern (~and bad (a b c ...+)) #:attr output
-             (raise-syntax-error #f (format "expected a pair of a label and a type specification surrounded by parens instead of ~a things" 
-                                            (length (syntax->datum #'bad)))
-                                 #'bad)]
+             (raise-syntax-error
+              #f (format "expected a pair of a label and a type specification surrounded by parens instead of ~a things" 
+                         (length (syntax->datum #'bad)))
+              #'bad)]
     [pattern (~and z 
                    ; this fail only happens if 2nd pattern above failed,
                    ; in which case we don't want an error message 
@@ -118,8 +121,9 @@
                    (~fail #:when (symbol? (syntax->datum #'z)))) 
              
              #:attr output
-             (raise-syntax-error #f (format "expected a pair of a label and a type specification surrounded by parens instead of ~s" (syntax->datum #'z))
-                                 #'z )])
+             (raise-syntax-error 
+              #f (format "expected a pair of a label and a type specification surrounded by parens instead of ~s" (syntax->datum #'z))
+              #'z )])
   
   (syntax-parse stx
                 [(web-spec ((~datum constant) v)) #'(list 'constant v)]
@@ -127,7 +131,8 @@
                 [(web-spec (~datum boolean)) #'(quote boolean)]
                 [(web-spec (~datum string)) #'(quote string)]  
                 [(web-spec (~datum string+)) #'(quote string+)]
-                [(web-spec (~datum symbol)) #'(quote symbol)]  
+                [(web-spec (~datum symbol)) #'(quote symbol)]
+                [(web-spec (~datum filename)) #'(quote filename)]
                 [(web-spec ((~datum function) txt:str (f:identifier 
                                                           p:lab-spec/sp ... 
                                                           (~datum ->) 
@@ -183,6 +188,7 @@
     ['string       new-tfield/string]
     ['string+      (λ(lab) (new-tfield/string lab #f #t))]
     ['symbol       new-tfield/symbol]
+    ['filename     new-tfield/file]
     [(list 'constant v) (λ(s) (new-tfield/const s v))]
     [(list 'function txt (list func params ... '-> rspec))
      (λ(s) (new-tfield/function s txt func (map parse/lab-spec params)

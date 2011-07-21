@@ -72,6 +72,7 @@
      (define label? parent-not-oneof/listof?)
      (render-basic/edit name '(tfield-string) (and label? label) 
                    (input-text-of name (or value "")) error)]
+    [(? tfield/file? _) (render-file/edit tf parent)]     
     [(? tfield/struct? _) (render-struct/edit tf parent)]
     [(? tfield/oneof? _)  (render-oneof/edit tf parent)]
     [(? tfield/listof? _) (render-listof/edit tf parent)]
@@ -97,10 +98,39 @@
 ; render-basic : (listof symbol) (or #f string) xexpr (or #f xexpr) -> xexpr
 (define (render-basic/edit name classes label input-elt error)
   ((div-wrapper name `(tfield tfield-basic ,@classes))
-   (list (if label `(span ([class "label"]) ,label) "")
+   (list (if label `(span ([class "label"]) ,(colonize label)) "")
          input-elt
          (if error `(span ([class "error"]) ,error) ""))))
-      
+
+; render-file/edit : tfield/file (or #f tfield) -> xexpr
+(define (render-file/edit tf parent)
+  (define label? (and (not (tfield/oneof? parent))
+                      (not (tfield/listof? parent))))
+  (match tf
+    [(tfield/file label name error file-name mime-type temp-path)
+     (cond
+       [(not file-name)  ; nothing uploaded
+        (render-basic/edit name '(tfield-file) (and label? label)
+                           `(input ([type "file"] [name ,name] [id ,name]))
+                           error)]
+       [(not temp-path)  ; notified of upload
+        (render-basic/edit name '(tfield-file) (and label? label)
+                  `(span ([class "uploading"])
+                         (img ([src "file-loading.gif"] [alt "file loading"]))
+                         "Uploading " ,file-name "... ")
+                  error)]
+       [else
+        (render-basic/edit name '(tfield-file) (and label? label)
+                  `(span ([class "uploaded"])
+                         ;; see tfield.rkt: parse - tfield/file case about this
+                         (input ([type "hidden"] [id ,name] [name ,name]
+                                                 [value ,file-name]))
+                         ,(file-view-link name file-name)
+                         " " ,(file-clear-link name file-name) 
+                         )
+                  error)]
+       )]))
+
 ; render-listof : tfield/listof (or #f tfield) -> xexpr
 (define (render-listof/edit tf parent)
   (match tf
@@ -212,6 +242,21 @@
    (list (if label `(span ([class "label"]) ,(colonize label)) "")
          `(span ,@(if (xexpr? content) (list content) content)))))
       
+;; file-view-link : string (or/c #f string) -> xexpr
+(define (file-view-link name file-name)
+  (if file-name
+      `(a ([href ,name] [class "filelink"]
+           [onClick ,(format "viewFile('~a'); return false;" name)])
+          ,file-name)
+      "-"))
+
+;; file-clear-link : string string -> xexpr
+(define (file-clear-link name file-name)
+  `(button 
+    ([id ,(format "~a-clearbtn" name)] [class "fileclear"] 
+     [type "button"]
+     [onClick ,(format "clearFile('~a'); return false;" name)])
+      "remove"))
 
 ; render/disp : tfield (or #f tfield) -> xexpr
 (define (render/disp tf parent)
@@ -236,6 +281,9 @@
      (render-basic/disp name '(tfield-string) (and parent-not-listof? label)
                         (if (equal? value "") "-"
                             (or value "-")))]
+    [(tfield/file label name error file-name mime-type temp-path)
+        (render-basic/disp name '(tfield-file) (and parent-not-listof? label)
+                      (file-view-link name file-name))]
     [(tfield/struct label name error constr args)
      ((div-wrapper #f '(tfield tfield-structure))
       `(fieldset (legend ,(colonize label))

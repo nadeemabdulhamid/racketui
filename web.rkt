@@ -23,23 +23,23 @@
 ; which is handled by req-handler.
 
 (define ((start tf) req)
-  (when (not (tfield/function? tf))
-    (error 'start (string-append "cannot start web application with a specifi"
-                                 "cation for a type other than a function")))
-  
-  (cond [(bindings-assq            ; this isn't the very first invocation?
-          (string->bytes/utf-8 "requesttype") (request-bindings/raw req))
-         ((req-handler tf) req)]
-        [else
-         (define next-req
-           (send/suspend
-            (λ(cont-url)
-              (response/full
-               200 #"Okay" (current-seconds) TEXT/HTML-MIME-TYPE 
-               (list (header #"Cache-Control" #"no-cache"))
-               (list (string->bytes/utf-8 
-                      (render-full/string tf cont-url)))))))
-         ((req-handler tf) next-req)]))
+    (when (not (tfield/function? tf))
+      (error 'start (string-append "cannot start web application with a specifi"
+                                   "cation for a type other than a function")))
+    
+    (cond [(bindings-assq            ; this isn't the very first invocation?
+            (string->bytes/utf-8 "requesttype") (request-bindings/raw req))
+           ((req-handler tf) req)]
+          [else
+           (define next-req
+             (send/suspend
+              (λ(cont-url)
+                (response/full
+                 200 #"Okay" (current-seconds) TEXT/HTML-MIME-TYPE 
+                 (list (header #"Cache-Control" #"no-cache"))
+                 (list (string->bytes/utf-8 
+                        (render-full/string tf cont-url)))))))
+           ((req-handler tf) next-req)]))
 
 
 
@@ -64,24 +64,14 @@
                     (expiration-handler req))])
     (define event (parse-event req))
     (define new-tf (event-dispatch tf event))
-    (define resp-type (response-type event))  ; "text/xml" or "text/html"
     (define next-req
       (send/suspend
        (λ(cont-url) 
-         (when DEBUG
-           (when (andmap filled? (tfield/function-args new-tf))
-             (printf "TFIELD after:\n")
-             (pretty-print (map tfield->value 
-                                (tfield/function-args new-tf)))(newline)))
-         
-         (define resp-xexpr  (ajax-response new-tf event cont-url))
-         (when DEBUG
-           (printf "Sending response:\n")(pretty-print resp-xexpr)(newline)
-           (printf "***********************************")(newline))
-         
-         (response/xexpr resp-xexpr 
-                         #:mime-type resp-type))))
-    
+         (define resp-type (response-type tf event)) 
+         (define resp-xexpr/full  (ajax-response new-tf event cont-url))
+         (if (response? resp-xexpr/full)
+             resp-xexpr/full
+             (response/xexpr resp-xexpr/full #:mime-type resp-type)))))
     ((req-handler new-tf) next-req)))
 
 
@@ -136,11 +126,26 @@
 ;    - 'load-saved-apply [name : string]
 ;    - 'remove-saved-one [name : string]
 ;    - 'remove-saved-all [loosematch : #f or "loosematch"]
-;  binding-function is : string -> (or #f string (list string<name> bytes<content>))
+;
+;    - 'notify-upload [name : string] [filename : string]
+;    - 'file-upload [name : string] [<name> : binding:file?]
+;    - 'file-view [name : string]
+;    - 'file-clear [name : string]
+;
+
+;; TODO: add a third step to file uploads to avoid race condition...
+;;       file-upload should not actually update the tfield because 
+;;       by the time that request completes, lots of other changes may
+;;       have happened to the tfield, so the ajax-response should save
+;;       the file, then initiate another ajax call to provide the 
+;;       name, type, location of the file that can quickly be added to
+;;       the tfield
+
+;  binding-function type is LOOKUP-FUNC (see tfield.rkt: parse)
 (struct event (type binding-function))
 
 
-; event-binding : event string -> LOOKUP-FUNC (see tfield:parse)
+; event-binding : event string -> LOOKUP-FUNC (see tfield.rkt: parse)
 (define (event-binding e key)
   ((event-binding-function e) key))
 
@@ -157,9 +162,12 @@
     (match (bindings-assq (string->bytes/utf-8 key) bindings)
       [(? binding:form? (binding:form _ value))
        (bytes->string/utf-8 value)]
-      [(? binding:file? _ filename headers content)
-       ;; TODO: extract content-type header if exists...
-       (list (string->bytes/utf-8 filename) #f content)] 
+      [(binding:file _ filename headers content)
+       (define type-header (headers-assq* #"Content-Type" headers))
+       ;;(printf "Content-type: ~a\n" (header-value type-header))
+       (list (bytes->string/utf-8 filename)
+             (and type-header (bytes->string/utf-8 (header-value type-header)))
+             content)]
       [_ #f]))
   
   (match (bindings-assq #"requesttype" bindings)
@@ -176,6 +184,18 @@
   (define lookup-func (curry event-binding ev))
   (match (event-type ev)
     
+    ['refresh   ; logically only happens on the first view of the app
+     (define cleared-files  ; clear files whose upload in progress
+       (update 
+        tf (λ(f) (and (tfield/file? f)
+                      (tfield/file-file-name f)
+                      (not (tfield/file-temp-path f))))
+        (λ(f)
+          (match f
+                [(tfield/file label name error file-name mime-type temp-path)
+                 (tfield/file label name #f #f #f #f)]))))
+     (or cleared-files tf)]
+    
     ['reload
      (parse tf lookup-func #f #f)]
     
@@ -183,8 +203,11 @@
      (clear tf)]
     
     ['apply-input 
-     (define new-tf (parse tf lookup-func #t))
+     (define new-tf (parse tf lookup-func #t))  ; parse *and* apply
      (define success? (filled? new-tf))
+     ;(printf "before:\n")(pretty-print tf)
+     ;(printf "after:\n")(pretty-print new-tf)
+
      (when success?   ; only auto-save on successful applications
        (save-tfield new-tf)  ; auto-save
        (purge-auto-saves tf))
@@ -237,7 +260,27 @@
     
     ['update-field
      (define name (event-binding ev "name"))
-     (or (update-named tf name (λ(tf/u) (parse tf/u lookup-func #f #f))) tf)]
+     (update-named tf name (λ(tf/u) (parse tf/u lookup-func #f #f)))]
+    
+    ['notify-upload
+     (define name (event-binding ev "name"))
+     (define file-name (event-binding ev "filename"))
+     (update-named tf name
+                   (λ(tf/f) (parse tf/f (λ(k) (cond [(equal? k name)
+                                                     (list file-name #f #f)]
+                                                    [else #f])) #f #f)))]
+    
+    ['file-upload
+     (define name (event-binding ev "name"))
+     (define file (event-binding ev name))
+     ;;(printf "file upload: ~a file: ~a\n" name file)
+     (update-named (parse tf lookup-func #f #f) name 
+                   (λ(tf/f) (parse tf/f lookup-func #f #f)))]
+    
+    ['file-clear    ;; parses form data too
+     (define name (event-binding ev "name"))
+     (update-named (parse tf lookup-func #f #f) name 
+                   clear)]
     
      [_ tf]))
 
@@ -279,16 +322,16 @@
 ;; ============================================================================
 
 
-; response-type : event -> bytes
+; response-type : tfield event -> bytes
 ; the mime type of the ajax response (xml or html)
-(define (response-type ev)
+(define (response-type tf ev)
   (match (event-type ev)
     [#f  ; never for now?
      #"text/html; charset=utf-8"]
     [_ #"text/xml; charset=utf-8"]))
 
 
-; ajax-response : event tfield string -> xexpr
+; ajax-response : event tfield string -> xexpr or response/full
 ; generates an appropriate xml/html response to an ajax request, of given event
 ; type
 ; note: to update cont-url, include: (a ([id "cont-url"] [href ,cont-url]) "")
@@ -302,6 +345,9 @@
     `(eval "updateContUrl('" ,cont-url "');"))
   (define (refresh-elts/xexpr parentSelector)
     `(eval "refreshElements('" ,parentSelector "');"))
+  (define clear-error/xexpr
+    `(html ([select "#form-error"] [arg1 ""])))
+
   (define (full-refresh/xexpr [additional '()])
     `(taconite
        (html ([select "#form-error"] ,@(if (not error) `((arg1 "")) `()))
@@ -342,16 +388,42 @@
     
     ; a number of events just need to replace the updated outer <div>
     ; as a response...
-    [(or 'listof-reorder 'listof-delete 'oneof-change 'listof-add)     
+    [(or 'listof-reorder 'listof-delete 'oneof-change 'listof-add 
+         'file-upload 'file-clear)
      (define name (event-binding ev "name"))
      (define divname (format "#edit-args #~a-div" name))
      `(taconite
        (replaceWith ([select ,divname])
           ,(render/edit (find-named tf name) (find-parent-of-named tf name)))
-       (html ([select "#form-error"] [arg1 ""]))
+       ,clear-error/xexpr
        ,cont-url-update/xexpr 
        ,(refresh-elts/xexpr divname))]
        
+    ['notify-upload
+     (define name (event-binding ev "name"))
+     (define divname (format "#edit-args #~a-div" name))
+     (define file-name (event-binding ev "filename"))
+     `(taconite
+       (eval "onUpload('" ,name "');")
+       (replaceWith ([select ,divname])
+           ,(render/edit (find-named tf name) (find-parent-of-named tf name)))
+       ,clear-error/xexpr
+       ,cont-url-update/xexpr
+       ,(refresh-elts/xexpr divname))]
+    
+    ['file-view
+     (define name (event-binding ev "name"))
+     (match (find-named tf name)
+       [(tfield/file _ _ _ file-name mime-type temp-path)
+        (define data 
+          (if (and temp-path (file-exists? temp-path))
+              (file->bytes temp-path) #"File Missing"))
+        (response/full 
+         200 #"Okay" (current-seconds) 
+         (if mime-type (string->bytes/utf-8 mime-type)
+             #"text/plain")
+         empty (list data))])]
+    
     ['list-saved 
      (define loose-match? (equal? (event-binding ev "loosematch") "loosematch"))
      `(response ,(saved-files-xml tf loose-match? #t))]

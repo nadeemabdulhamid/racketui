@@ -15,6 +15,7 @@
 (check-expect (web-spec string) 'string)
 (check-expect (web-spec string+) 'string+)
 (check-expect (web-spec boolean) 'boolean)
+(check-expect (web-spec filename) 'filename)
 (check-expect
  (rest (rest    ; check-expect doesn't compare procedures (make-boa)
         (web-spec (structure make-boa
@@ -76,5 +77,8 @@
 (define tf/s+ ((parse/web-spec (web-spec string+)) "t"))
 (check-expect tf/s+
               (new-tfield/string "t" #f #t #:name (tfield-name tf/s+)))
+(define tf/f ((parse/web-spec (web-spec filename)) "data file"))
+(check-expect tf/f
+              (new-tfield/file "data file" #f #f #f #:name (tfield-name tf/f)))
 
 (test)

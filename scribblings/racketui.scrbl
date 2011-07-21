@@ -1,6 +1,6 @@
 #lang scribble/doc
 
-@(require scribble/manual planet/scribble)
+@(require scribble/manual)
 
 @title[#:tag "top"]{RacketUI: Automated Web UI Generator}
 @author{@(author+email "Nadeem Abdul Hamid" "nadeem@acm.org")}

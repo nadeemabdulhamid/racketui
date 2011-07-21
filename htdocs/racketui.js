@@ -217,10 +217,22 @@ function refreshElements(parentSelector) {
 	// add handler for oneof selects
 	$(selpref+"select.tfield-oneof").change(onSelectOneOf);
 	
-	// add handle for all input updates
+	// add handle for all non-file input updates
 	var inputs = $(selpref+"input");
 	for (var i = 0; i < inputs.length; i++) {
-		$(inputs[i]).change(makeRequestFunc("update-field", {name:$(inputs[i]).attr('name')}));
+		var inp = $(inputs[i]);
+		if (inp.attr('type') != 'file') {  // non-file input elts
+			inp.change(makeRequestFunc("update-field",
+									{name: inp.attr('name')}));
+		} else {   // file input elts
+			var id = inp.attr('id');
+			inp.change(makeRequestFunc("notify-upload", 
+							function() { return {
+											name: $('#'+id).attr('name'),
+											filename: $('#'+id).val()
+										};}, 
+							false));
+		}
 	}
 }
 
@@ -233,6 +245,43 @@ function refreshElements(parentSelector) {
    object */
 function addFormData(obj) {
 	return $.extend({}, obj, $("#edit > form").serializeJSON());
+}
+
+
+/* initiates actual file upload, given id/name of
+   input element of type file */
+function onUpload(id) {
+	var elt = $("#edit #" + id);
+
+	//console.log("Starting upload: (" + id + ") " + elt.attr('id') + " |" + elt.val() + "|");
+	
+	$.ajaxFileUpload({
+		url: CONT_URL,
+		secureuri: false,
+		fileElementId: id,
+		dataType: "xml",
+		data: { requesttype: "file-upload", name : id },
+		success: function(data, status) {
+			//console.log('file upload success'); console.log(data); console.log(status);
+			$.taconite(data);
+		},
+		error: function(data, status, e) {
+			console.log('file upload error'); console.log(e);
+		}
+	});
+}
+
+/* opens a file for user to see */
+function viewFile(tfieldid) {
+	console.log('view file: ' + tfieldid);
+	$.open.newWindow(CONT_URL + '?' + $.param({requesttype: "file-view", 
+											   name: tfieldid}), {});
+	return false;
+}
+
+function clearFile(tfieldid) {
+	makeRequest("file-clear", { name : tfieldid });
+	return false;
 }
 
 /* when a select is changed */
@@ -287,6 +336,7 @@ function reorderList(event, ui) {
 
 /**************************************************************/
 /* utility functions */
+
 
 /* enforces a minimum loading delay */
 function startupDelay() {

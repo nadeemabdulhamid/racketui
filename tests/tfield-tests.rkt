@@ -200,9 +200,10 @@
                    (new-tfield/file "name file" "names.dat" "text/plain"
                                     temp-file-name #:name "z"))
      (check-equal? (validate tf2) tf2)
-     (check-equal? (validate tf1)
-                   (new-tfield/file "name file" #f #f #f
-                                    #:name "a" #:error ERRMSG/NO-FILE))
+     (check-equal? (validate tf1)  ; this would appear an in-progress upload
+                                   ; (because temp-file doesn't exist)
+                   (new-tfield/file "name file" "names.dat" #f #f
+                                    #:name "a" #:error ERRMSG/UPLOAD))
      
      (when (file-exists? temp-file-name)
        (delete-file temp-file-name))

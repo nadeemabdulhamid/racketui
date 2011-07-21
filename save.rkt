@@ -76,6 +76,7 @@
 ;;   - 'string
 ;;   - 'symbol
 ;;   - 'boolean
+;;   - 'file
 ;;   - '(structure (... skel-expr ...))
 ;;   - '(structure constr-name (... skel-expr ...))  *constr-name is a symbol
 ;;   - '(oneof ... skel-expr ...)
@@ -90,6 +91,7 @@
 ;;    - <string>
 ;;    - <symbol>
 ;;    - <boolean>
+;;    - (list 'file <string> <string> <string>)
 ;;    - (list 'structure <data-expr> ...)   
 ;;    - (list 'oneof <number/boolean> <data-expr>)   <-- the selected option
 ;;    - (list 'listof <data-expr> ...)
@@ -105,16 +107,18 @@
 
 (define (tfield->skel-expr tf [complete? #f])
   (match tf
-    [(tfield/const label name errors value)
+    [(? tfield/const? _)
      'constant]
-    [(tfield/number label name errors value raw-value)
+    [(? tfield/number? _)
      'number]
-    [(tfield/string label name errors value non-empty?)
+    [(? tfield/string? _)
      'string]
-    [(tfield/symbol label name errors value)
+    [(? tfield/symbol? _)
      'symbol]
-    [(tfield/boolean label name errors value)
+    [(? tfield/boolean? _)
      'boolean]
+    [(? tfield/file? _)
+     'file]
     [(tfield/struct label name errors constr args)
      `(structure ,@(if complete? (list (object-name constr)) empty)
                  ,(map (λ(f) (tfield->skel-expr f complete?)) args))]
@@ -125,8 +129,10 @@
     [(tfield/function title name errors text func args result)
      `(function ,@(if complete? (list (object-name func)) '())
                 (,@(map (λ(f) (tfield->skel-expr f complete?)) args)
-                 ,@(if complete? (list (tfield->skel-expr result complete?)) '())))]
-    [_ (error 'tfield->skel (format "somehow got an unknown field type: ~a" tf))])
+                 ,@(if complete? 
+                       (list (tfield->skel-expr result complete?)) '())))]
+    [_ (error 'tfield->skel 
+              (format "somehow got an unknown field type: ~a" tf))])
   )
 
 
@@ -168,6 +174,8 @@
      value]
     [(tfield/boolean label name errors value)
      value]
+    [(tfield/file label name error file-name mime-type temp-path)
+     (list 'file #f #f #f)]   ; file-name mime-type temp-path
     [(tfield/struct label name errors constr args)
      (cons 'structure (map tfield->data-expr args))]
     [(tfield/oneof label name errors options chosen)
@@ -178,13 +186,14 @@
      (cons 'listof (map tfield->data-expr elts))]
     [(tfield/function title name errors text func args result)
      (cons 'function (map tfield->data-expr args))]
-    [_ (error 'tfield->data-expr (format "somehow got an unknown field type: ~a" tf))]))
+    [_ (error 'tfield->data-expr 
+              (format "somehow got an unknown field type: ~a" tf))]))
 
 
 ;; unify-data-expr/tfield : tf data-expr -> tf
 
 (define (unify-data-expr/tfield otf de)
-  (define tf (clear otf))
+  (define tf (clear otf #f))
   (match tf
     [(tfield/const label name errors value)
      tf]
@@ -192,44 +201,56 @@
      (struct-copy tfield/number tf 
                   [value (and (number? de) de)] 
                   [raw-value (or (and (number? de) (number->string de))
-                                 (and (string? de) de))])] ; string still goes into raw-value
+                                 (and (string? de) de))])] 
+                                 ; string still goes into raw-value
     [(tfield/string label name errors value non-empty?)
      (struct-copy tfield/string tf [value (and (string? de) de)])]
     [(tfield/symbol label name errors value)
      (struct-copy tfield/symbol tf [value (and (symbol? de) de)])]
     [(tfield/boolean label name errors value)
      (struct-copy tfield/boolean tf [value (equal? #t de)])]
+    [(tfield/file label name error file-name mime-type temp-path)
+     (if (and (cons? de) (equal? 'file (first de))
+              (= (length (rest de)) 3))
+         (struct-copy tfield/file tf
+                      [file-name (second de)] [mime-type (third de)]
+                      [temp-path (fourth de)])
+         tf)]
     [(tfield/struct label name errors constr args)
-     (if (and (cons? de) (equal? 'structure (first de)) (= (length (rest de)) (length args)))
+     (if (and (cons? de) (equal? 'structure (first de)) 
+              (= (length (rest de)) (length args)))
          (struct-copy tfield/struct tf
                       [args (map unify-data-expr/tfield args (rest de))])
-         (clear tf))]
+         tf)]
     [(tfield/oneof label name errors options chosen)
      (if (and (cons? de) (equal? 'oneof (first de)) (= (length de) 3) 
               (number? (second de)) (< (second de) (length options)))
          (let* ([cho (second de)]
                 [op (third de)]
-                [new-ops (map (λ(o i) (if (= i cho) (unify-data-expr/tfield o op) o))
-                              options (build-list (length options) values))]
-                )
+                [new-ops (map (λ(o i) (if (= i cho) 
+                                          (unify-data-expr/tfield o op) o))
+                              options (build-list (length options) values))])
            (struct-copy tfield/oneof tf [chosen cho] [options new-ops]))
-         (clear tf))]
+         tf)]
     [(tfield/listof label name errors base elts non-empty?)
      (if (and (cons? de) (equal? 'listof (first de)))
          (struct-copy tfield/listof tf
-                      [elts (rename/deep* (map (curry unify-data-expr/tfield base) (rest de))
-                                          name)])
-         (clear tf))]
+                      [elts (rename/deep*
+                             (map (curry unify-data-expr/tfield base) (rest de))
+                             name)])
+         tf)]
     [(tfield/function title name errors text func args result)
-     (if (and (cons? de) (equal? 'function (first de)) (= (length (rest de)) (length args)))
+     (if (and (cons? de) (equal? 'function (first de))
+              (= (length (rest de)) (length args)))
          (let ([new-tf
                 (struct-copy tfield/function tf
                              [args (map unify-data-expr/tfield args (rest de))] 
-                             [result (clear result)])])
+                             [result (clear result #f)])])
            new-tf)   ;; DO NOT try to fill in result
            ;;(or (apply-tfield/function new-tf) new-tf)) ; try to fill in result
-         (clear tf))]
-    [_ (error 'unify-data-expr/tfield (format "somehow got an unknown field type: ~a" tf))]))
+         tf)]
+    [_ (error 'unify-data-expr/tfield 
+              (format "somehow got an unknown field type: ~a" tf))]))
 
 
 ;;==============================================================================
@@ -282,7 +303,8 @@
             [(not (= (length data) 4)) #f]
             [else (unify-data-expr/tfield tf (fourth data))]
             )))))
-
+;; TODO: move all temp-path tfield/file files to temporary directories
+;;   upon successful unification
 
 
 ;; save-tfield : tfield [number] [boolean] -> path or #f
@@ -294,17 +316,21 @@
   (check/make-temp-dir)    ; make-temporary-file needs access to the directory
   (check/make-dir save-dir)
   
+  
+  (define file-name
+    (make-temporary-file 
+     (string-append (save-file-prefix tf #:timestamp timestamp
+                                      #:usersave usersave?) "~a.sav")
+     #f save-dir))
   (define write-thunk
     (λ()
+;; TODO: move all temp-path tfield/file files into a subdirectory for this save
+;;       and update the data-expr temp-path's accordingly
       (write (list timestamp
                    usersave?
                    (tfield->skel-expr tf #t)
                    (tfield->data-expr tf)))
       ))
-  (define file-name
-    (make-temporary-file (string-append (save-file-prefix tf #:timestamp timestamp
-                                                            #:usersave usersave?) "~a.sav")
-                           #f save-dir))
   
   (with-output-to-file file-name write-thunk #:exists 'truncate)
   file-name
@@ -329,7 +355,8 @@
   (map (compose path->string file-name-from-path) file-paths))
   
 
-;; decompose-name/tfield-file : string -> (list <timestamp> <long-hash> <usersave>)
+;; decompose-name/tfield-file : string 
+;                              -> (list <timestamp> <long-hash> <usersave>)
 
 (define (decompose-name/tfield-file filename)
   (define pcs (map string->number (take (regexp-split #rx"-" filename) 3)))

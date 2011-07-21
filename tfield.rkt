@@ -42,6 +42,8 @@ Implementation Notes and Subtleties:
    - purge-input-files
    These two are called from extract&apply-args.
 
+ For tfield/file, if file-name is a string but temp-path is #f, it indicates
+ that at upload is in progress, or at least was initiated at some point.
 
  For tfield/function, an attempt is made to apply the function in the
  following procedures/circumstances:
@@ -155,7 +157,8 @@ Implementation Notes and Subtleties:
 (define new-tfield/listof
   (derive-tfield-constructor tfield/listof base [elts empty] [non-empty? #f]))
 (define new-tfield/file
-  (derive-tfield-constructor tfield/file file-name mime-type temp-path))
+  (derive-tfield-constructor tfield/file
+                             [file-name #f] [mime-type #f] [temp-path #f]))
 (define new-tfield/function  ; label is title
   (derive-tfield-constructor tfield/function text func args result))
 
@@ -241,11 +244,12 @@ Implementation Notes and Subtleties:
 ;;=============================================================================
 ;;=============================================================================
 
-; clear : tfield -> tfield
+; clear : tfield [boolean] -> tfield
 ; clears out any user-entered values (or function results) and error in the field
-; * for tfield/file, if the temp-path file exists, it will be deleted
+; if finalize? is #t:
+;   * for tfield/file, if the temp-path file exists, it will be deleted
 
-(define (clear tf)
+(define (clear tf [finalize? #t])
   (match tf
     [(tfield/const label name error value)
      tf]
@@ -258,15 +262,19 @@ Implementation Notes and Subtleties:
     [(tfield/boolean label name error value)
      (tfield/boolean label name #f #f)]
     [(tfield/file label name error file-name mime-type temp-path)
-     (when (and temp-path (file-exists? temp-path))
+     (when (and finalize? temp-path (file-exists? temp-path))
+       (printf "deleting ~a\n" temp-path)
        (delete-file temp-path))
      (tfield/file label name #f #f #f #f)]
     [(tfield/struct label name error constr args)
-     (tfield/struct label name #f constr (map clear args))]
+     (tfield/struct label name #f constr 
+                    (map (λ(a) (clear a finalize?)) args))]
     [(tfield/oneof label name error options chosen)
-     (tfield/oneof label name #f (map clear options) #f)]
+     (tfield/oneof label name #f 
+                   (map (λ(a) (clear a finalize?)) options) #f)]
     [(tfield/listof label name error base elts non-empty?)
-     (tfield/listof label name #f (clear base) empty non-empty?)]
+     (when finalize? (map clear elts))  
+     (tfield/listof label name #f (clear base finalize?) empty non-empty?)]
                     ;; should this really clear base???
                     ;; well base should really be cleared to begin with,
                     ;; maybe a TODO: ensure constructor for tfield/listof
@@ -274,7 +282,8 @@ Implementation Notes and Subtleties:
                     ;;(map clear elts))]
     [(tfield/function title name error text func args result)
      (tfield/function title name #f text func
-                      (map clear args) (clear result))]
+                      (map (λ(a) (clear a finalize?)) args)
+                      (clear result finalize?))]
     [_ (error (object-name clear)
               (format "somehow got an unknown field type: ~a" tf))]))
 
@@ -429,7 +438,8 @@ Implementation Notes and Subtleties:
               (= (length args) (sub1 (length struct-args))))
           ; in BSL, struct->vector produces an extra field at the end?????
           (block
-           ;(printf "here\n ~a ~a\n\n~a ~a\n" (length args) args (length struct-args) struct-args)
+           ;(printf "here\n ~a ~a\n\n~a ~a\n" (length args) args
+           ;            (length struct-args) struct-args)
            (define value/args
              (map (λ(a v/arg) (value->tfield a v/arg)) 
                   args (take struct-args (length args))))
@@ -552,7 +562,9 @@ Implementation Notes and Subtleties:
        (and value (symbol->string value))]
       [(tfield/boolean label name error value) (and value "on")]
       [(and tf/f (tfield/file label name error file-name mime-type temp-path))
-       (and (filled? tf) (list file-name mime-type temp-path))]
+       (cond [(filled? tf/f) (list file-name mime-type temp-path)]
+             [file-name (list file-name #f #f)]  ; in-progress upload ?
+             [else #f])]
       [(tfield/struct label name error constr args)     #f]
       [(tfield/oneof label name error options chosen)   
        (and chosen (number->string chosen))]
@@ -569,7 +581,7 @@ Implementation Notes and Subtleties:
 ;;
 ;; LOOKUP-FUNC :  string -> 
 ;;                -> (or/c #f string? (list/c string? (or/c #f string?)
-;;                                                (or/c path-string? bytes?)))
+;;                                             (or/c #f path-string? bytes?)))
 ;;
 ;; Namely, it's a function that maps a string key value to a 
 ;; string data value, or a triple of <fileneame> <mimetype> <content/path> 
@@ -601,6 +613,7 @@ Implementation Notes and Subtleties:
 ;  with tfield->value or when the function is actually applied)
 
 (define ERRMSG/NO-FILE "Must select an input file")
+(define ERRMSG/UPLOAD "File upload is not yet complete")
 (define ERRMSG/NOT-FILLED "Must be filled in")
 (define ERRMSG/NOT-EMPTY "Cannot be empty")
 (define ERRMSG/NOT-NUMBER "Should be a number")
@@ -672,12 +685,17 @@ Implementation Notes and Subtleties:
     [(tfield/file label name error file-name mime-type temp-path)
      (define v (lookup-func name))
      (cond
+       [(and (string? v) file-name temp-path (string=? v file-name))
+        tf]  ; if file already uploaded, then a hidden input element will be in 
+             ; the form with same value as existing file-name
        [(not (list? v))
         (tfield/file label name (if validate? ERRMSG/NO-FILE error)
                      #f #f #f)]
-       [(path-string? (third v))   ; existing temp-path
+       [(not (third v))
+        (tfield/file label name (if validate? ERRMSG/UPLOAD error) (first v) #f #f)]
+       [(path-string? (third v)) ; existing temp-path
         (tfield/file label name #f (first v) (second v) (third v))]
-       [(bytes? (third v))   ; raw-content
+       [(bytes? (third v))  ; raw-content
         (define temp-file (make-temporary-file))
         (with-output-to-file temp-file
           (λ() (write-bytes (third v)))
@@ -806,39 +824,54 @@ Implementation Notes and Subtleties:
 ;  return tfield or a failure message
 
 (define (extract&apply-args func args result)
-  ; check if all args were parsed & are filled
-  (define all-filled? (andmap filled? args))
+  (define temp-current-directory (make-temporary-file "mztmp~a" 'directory))
+  (define the-return
+    (parameterize ([current-directory temp-current-directory])
+      ;;(printf "extract&apply-args in directory: ~a\n" (current-directory))
+      ;;(pretty-print args)
+      
+      ; check if all args were parsed & are filled
+      (define all-filled? (andmap filled? args))
+      
+      ; attempt to apply if all-filled
+      (define return-value
+        (or (and (not all-filled?) '(failure)) 
+            ;; if not all filled, apply-result = '(failure)
+            (with-handlers ([exn? (λ(x) #;(pretty-print x)            
+                                    ;; or if exn, apply-result = '(failure ...)
+                                    `(failure ,(exn-message x)))])
+              (if (andmap materialize-input-files args) ; attempt to setup files
+                  (let ([ret-val (apply func (map tfield->value args))])
+                    (andmap purge-input-files args)
+                    (list 'success ret-val))
+                  (list 'failure "A problem occurred with the input file(s)")))))
+      
+      (define result-good? (symbol=? (first return-value) 'success))
+      
+      ; attempt to unify apply-result with the tfield's result tfield
+      (define new-result 
+        (and result-good? (value->tfield result (second return-value))))
+      
+      ;;;(printf "applied: filled? ~s good? ~s new-result: ~s return-value: ~s\n" 
+      ;;;        all-filled? result-good? new-result return-value)
+      
+      (cond [(not all-filled?) 
+             `(failure ,ERRMSG/MISSING-INPUT)]
+            [(not result-good?) 
+             `(failure ,(format "~a: ~a" ERRMSG/FUNC-APP (second return-value)))]
+            [(not new-result) 
+             `(failure ,ERRMSG/MISMATCH)]
+            [else `(success ,new-result)])
+      
+      ))
   
-  ; attempt to apply if all-filled
-  (define return-value
-    (or (and (not all-filled?) '(failure)) 
-        ;; if not all filled, apply-result = '(failure)
-        (with-handlers ([exn? (λ(x) #;(pretty-print x)            
-                                ;; or if exn, apply-result = '(failure ...)
-                                `(failure ,(exn-message x)))])
-          (if (andmap materialize-input-files args) ; attempt to setup files
-              (let ([ret-val (apply func (map tfield->value args))])
-                (andmap purge-input-files args)
-                (list 'success ret-val))
-              (list 'failure "A problem occurred with the input file(s)")))))
-  
-  (define result-good? (symbol=? (first return-value) 'success))
-  
-  ; attempt to unify apply-result with the tfield's result tfield
-  (define new-result 
-    (and result-good? (value->tfield result (second return-value))))
-  
-  ;;;(printf "applied: filled? ~s good? ~s new-result: ~s return-value: ~s\n" 
-  ;;;        all-filled? result-good? new-result return-value)
-  
-  (cond [(not all-filled?) 
-         `(failure ,ERRMSG/MISSING-INPUT)]
-        [(not result-good?) 
-         `(failure ,(format "~a: ~a" ERRMSG/FUNC-APP (second return-value)))]
-        [(not new-result) 
-         `(failure ,ERRMSG/MISMATCH)]
-        [else `(success ,new-result)])
-  )
+  ;; TODO: remove all files from temp-current-directory and delete it
+  (with-handlers ([exn? (λ(x) (pretty-print x) the-return)])
+    (for ([file (directory-list temp-current-directory)])
+      (delete-file (build-path temp-current-directory file)))
+    (delete-directory temp-current-directory)
+    the-return))
+
 
 
 ;; materialize-input-files : tfield -> boolean
@@ -963,6 +996,11 @@ Implementation Notes and Subtleties:
 ; #f if no changes made
 
 (define (update-named tf target-name tf-func)
+  (update tf (λ(f) (string=? target-name (tfield-name f))) tf-func))
+
+
+; update : tfield (tfield -> boolean) (tfield -> tfield) -> tfield or #f
+(define (update tf pred tf-func)
   (define (copy/non-false old new)
     (map (λ(o n) (if n n o)) old new))
   
@@ -970,20 +1008,56 @@ Implementation Notes and Subtleties:
     [(or (? tfield/const? _) (? tfield/number? _)
          (? tfield/string? _) (? tfield/boolean? _)
          (? tfield/symbol? _) (? tfield/file? _))
-     (and (string=? target-name (tfield-name tf)) (tf-func tf))]
+     (and (pred tf) (tf-func tf))]
 
     [(tfield/struct label name error constr args)
-     (cond [(string=? target-name name) (tf-func tf)]
+     (define upd-args (map (λ(a) (update a pred tf-func)) args))
+     (define new-args (copy/non-false args upd-args))
+     (define new-tf (struct-copy tfield/struct tf [args new-args]))
+     (or (and (pred new-tf) (tf-func new-tf))
+         (and (ormap values upd-args) new-tf))]
+    
+    [(tfield/oneof label name error options chosen)
+     (define upd-options (map (λ(a) (update a pred tf-func)) options))
+     (define new-options (copy/non-false options upd-options))
+     (define new-tf (struct-copy tfield/oneof tf [options new-options]))
+     (or (and (pred new-tf) (tf-func new-tf))
+         (and (ormap values new-options) new-tf))]
+    
+    [(tfield/listof label name error base elts non-empty?)
+     (define upd-base (update base pred tf-func))
+     (define upd-elts (map (λ(a) (update a pred tf-func)) elts))
+     (define new-elts (copy/non-false elts upd-elts))
+     (define new-tf (struct-copy tfield/listof tf
+                                 [base (or upd-base base)]
+                                 [elts new-elts]))
+     (or (and (pred new-tf) (tf-func new-tf))
+         (and upd-base new-tf)
+         (and (ormap values new-elts) new-tf))]
+    
+    [(tfield/function title name error text func args result)
+     (define upd-result (update result pred tf-func))
+     (define upd-args (map (λ(a) (update a pred tf-func)) args))
+     (define new-args (copy/non-false args upd-args))
+     (define new-tf (struct-copy tfield/function tf
+                                 [result (or upd-result result)]
+                                 [args new-args]))
+     (or (and (pred new-tf) (tf-func new-tf))
+         (and upd-result new-tf)
+         (and (ormap values new-args) new-tf))]
+
+#|
+    (cond [(string=? target-name name) (tf-func tf)]
            [else
             (define new-args 
-              (map (λ(a) (update-named a target-name tf-func)) args))
+              (map (λ(a) (update a pred tf-func)) args))
             (and (ormap values new-args)
                  (struct-copy tfield/struct tf 
                               [args (copy/non-false (tfield/struct-args tf)
                                                     new-args)]))])]
     
     [(tfield/oneof label name error options chosen)
-     (cond [(string=? target-name name) (tf-func tf)]
+     (cond [(string=? target-name name)(tf-func tf)]
            [else
             (define new-options 
               (map (λ(a) (update-named a target-name tf-func)) options))
@@ -993,7 +1067,6 @@ Implementation Notes and Subtleties:
                                (copy/non-false (tfield/oneof-options tf)
                                                new-options)]))])]
     
-    [(tfield/listof label name error base elts non-empty?)
      (cond [(string=? target-name name) (tf-func tf)]
            [(update-named base target-name tf-func)
             => (λ(new-base) (struct-copy tfield/listof tf [base new-base]))]
@@ -1004,7 +1077,7 @@ Implementation Notes and Subtleties:
                  (struct-copy tfield/listof tf 
                               [elts (copy/non-false (tfield/listof-elts tf)
                                                     new-elts)]))])]
-    
+
     [(tfield/function title name error text func args result)
      (cond [(string=? target-name name) (tf-func tf)]
            [(update-named result target-name tf-func)
@@ -1017,8 +1090,9 @@ Implementation Notes and Subtleties:
                  (struct-copy tfield/function tf 
                               [args (copy/non-false (tfield/function-args tf)
                                                     new-args)]))])]
-    
-    [_ (error 'update-named
+        |#
+
+    [_ (error 'update
               (format "somehow got an unknown field type: ~a" tf))]))
 
 
@@ -1120,7 +1194,7 @@ Implementation Notes and Subtleties:
 
 (provide ERRMSG/NOT-FILLED ERRMSG/NOT-NUMBER ERRMSG/MISSING-INPUT
          ERRMSG/SELECT-OPTION ERRMSG/FUNC-APP ERRMSG/MISMATCH
-         ERRMSG/NO-FILE)
+         ERRMSG/NO-FILE ERRMSG/UPLOAD)
 
 (provide/contract
  
@@ -1232,9 +1306,9 @@ Implementation Notes and Subtleties:
                          ((listof tfield?) boolean? #:name string?
                          #:error (or/c #f xexpr/c))
                          tfield/listof?))
- (new-tfield/file (->* ((or/c #f string?) (or/c #f string?) (or/c #f string?)
-                                          (or/c #f path-string?))
-                       (#:name string? #:error (or/c #f xexpr/c))
+ (new-tfield/file (->* ((or/c #f string?))
+                       ((or/c #f string?) (or/c #f string?) (or/c #f path-string?)
+                        #:name string? #:error (or/c #f xexpr/c))
                          tfield/file?))
  (new-tfield/function (->* ((or/c #f string?) 
                             (or/c string? (listof xexpr/c)) procedure?
@@ -1245,7 +1319,7 @@ Implementation Notes and Subtleties:
  
  ; functions
  (any-error? (-> tfield? boolean?))
- (clear (-> tfield? tfield?))
+ (clear (->* (tfield?) (boolean?) tfield?))
  (filled? (-> tfield? boolean?))
  
  (tfield->value (-> tfield? any))
@@ -1254,10 +1328,11 @@ Implementation Notes and Subtleties:
  (parse (->* (tfield? 
               (-> string?
                   (or/c #f string? (list/c string? (or/c #f string?)
-                                           (or/c path-string? bytes?)))))
+                                           (or/c #f path-string? bytes?)))))
              (boolean? boolean?) tfield?))
  (validate (-> tfield? tfield?))
  
+ (update (-> tfield? (-> tfield? boolean?) (-> tfield? tfield?) (or/c #f tfield?)))
  (update-named (-> tfield? string? (-> tfield? tfield?) (or/c #f tfield?)))
  (find-named (-> tfield? string? (or/c #f tfield?)))
  (find-parent-of-named (-> tfield? string? (or/c #f tfield?)))
