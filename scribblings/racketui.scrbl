@@ -54,8 +54,8 @@ and then putting the following code beneath the definition of @racket[acronym]:
 ]
 
 Running this program should launch a web browser with a user
-interface that allows input of a list of words (strings) and controls
-to apply the function to that input and view the result. 
+interface that allows input of a list of words (strings) and provides controls
+to apply the function to the input and view the result. 
 See the section on @secref{using} for details on the functionality provided by
 the generated web interface.
 
@@ -90,7 +90,8 @@ A @deftech{web spec} (web field specification) is one of
  @item{ @defform/none[#:literals (string) string] }
  @item{ @defform/none[#:literals (string+) string+] for non-empty strings }
  @item{ @defform/none[#:literals (filename) filename] for
-        functions that expect the name of an input file, or that produce
+        functions that expect the name of an input file whose content will 
+        be read, or that produce
         the name of a generated output file }
  @item{ @defform/none[#:literals (structure) (structure constr lab-spec ...+)] 
         where @racket[constr] is a structure constructor and 
@@ -110,12 +111,12 @@ A @deftech{web spec} (web field specification) is one of
         }
  @item{ @defform/none[#:literals (function ->) (function purpose (proc lab-spec ...+ -> lab-spec))]
         where @racket[purpose] is a @racket[string], @racket[proc] is the name of a procedure,
-        and @racket[lab-spec] is a @tech{labeled spec}. This form
+        and @racket[lab-spec] are @tech{labeled specs}. This form
         represents a specification for the given function (@racket[proc]), consuming
         one or more parameters whose specifications precede @racket[->], and 
         producing data that meets the right-most specification.
         
-        At the moment, only the outermost @tech{web spec} form should be a 
+        At the moment, only the outermost form of a @tech{web spec} should be a 
         @racket[function], and it is what should be provided to @racket[web-launch] 
         (see @secref{starting}).
         }
