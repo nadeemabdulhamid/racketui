@@ -47,6 +47,10 @@ body, .ui-widget {
     text-align: center;
 }
 
+#version {
+	font-size: x-small;
+}
+
 
 /***************************************************************
  * Saved Tab */

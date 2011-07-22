@@ -41,13 +41,12 @@
                 "\n")))
 
 
-(require (planet "main.rkt" ("nah22" "racketui.plt" 1 3)))
+(require (planet "main.rkt" ("nah22" "racketui.plt" 1 5)))
 
-(web-launch
- "!Encryptor!"
+(web-launch "!Encryptor!"
  (function "Use this program to encrypt your most secret files."
-           (encryptFile ["Input file" filename]
-                        ["Output file name" string+]
-                        ["Secret key" number]
-                        ["Uppercase?" boolean]
-                        -> ["Encrypted file" filename])))
+   (encryptFile ["Input file" filename]
+                ["Output file name" string+]
+                ["Secret key" number]
+                ["Uppercase?" boolean]
+                -> ["Encrypted file" filename])))

@@ -1,18 +1,14 @@
 #lang racket
 
 (require "tfield.rkt")
-(require web-server/servlet
+(require racket/runtime-path
+         setup/getinfo
+         web-server/servlet
          web-server/servlet-env
          web-server/templates
          xml)
 
-
-;; TODO: maybe render tfield names as 'class'es instead of 'id's in HTML
-;        elements (because the same tfield may be rendered multiple times
-;        in the page -- on the saved preview tab, the edit tab, and/or 
-;        the results tab -- leading to duplicate occurrences of id's)
-;        
-
+(define-runtime-path SOURCE-DIRECTORY ".")
 
 ;; ============================================================================
 
@@ -23,6 +19,7 @@
 
 (define (render-full/string tf cont-url)
   (define title (tfield-label tf))
+  (define version ((get-info/full SOURCE-DIRECTORY) 'version))
   (define text 
     (match (tfield/function-text tf)
       [(? string? s) s]
@@ -49,9 +46,12 @@
     
   (match tf
     [(tfield/const label name error value)
-     (define label? parent-not-oneof/listof?)
-     (render-basic/edit name '(tfield-constant) (and label? label)
-                   (input-text-of name (format "~a" value) #t) error)]
+     (cond [parent-not-oneof?
+            (define label? parent-not-oneof/listof?)
+            (render-basic/edit name '(tfield-constant) (and label? label)
+                               (input-text-of name (format "~a" value) #t) error)]
+           [else
+            (render-basic/edit name '(tfield-constant) #f "" error)])]
     [(tfield/boolean label name error value)
      (define label? parent-not-oneof/listof?)
      (render-basic/edit name '(tfield-boolean) 

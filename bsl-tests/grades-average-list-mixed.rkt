@@ -48,8 +48,13 @@
            [(string? (first alog)) (summation (rest alog))]
            [else (+ (first alog) (summation (rest alog)))])]))
 
-;average: List-of-Grades -> Number
-;Calculates the Average of the LOG leaving the empty entries out, and outputting "No Data" if no work has been done. 
+; average: List-of-Grades -> Number or "No Data"
+; Produces the average of the given list of grades
+; ignoring excusals, counting missing grades as 0,
+; and taking into account the higher of two grades in 
+; case of a retake.
+; If there are no values at all to average, produces
+; the string "No Data".
 
 (check-expect (average (list 45 45 45 45 45 empty 45)) (/ (* 6 45) 7))
 (check-expect (average (list 100 empty "sick" 50)) 50)
@@ -68,16 +73,17 @@
 (require (planet nah22/racketui))
 ; (require (planet "main.rkt" ("nah22" "racketui.plt" 1 1)))
 
+(define/web grade/web
+  (oneof ["Actual grade" number]
+         ["Retake"  (structure make-retake
+                       ["First attempt" number]
+                       ["Second attempt" number])]
+         ["Excused (reason)" string+]
+         ["Missing" (constant empty)]))
 
-(web-launch
- "Grade Average Computer"
- (function "Computes the average of actual grades in the given list."
-           (average ["Grades" (listof ["Grade Result" (oneof ["Actual grade" number]
-                                                             ["Retake"
-                                                              (structure make-retake
-                                                                         ["First attempt" number]
-                                                                         ["Second attempt" number])]
-                                                             ["Excused" string+]
-                                                             ["Missing" (constant empty)])])]
-                    -> ["Final Grade" (oneof ["Average grade" number]
-                                             ["No Data" (constant "No Data")])])))
+(web-launch "Grade Average Computer"
+ (function "Computes the average of grades in the given list."
+   (average ["Grades" (listof ["Grade Result" grade/web])]
+            -> ["Final Grade" 
+                (oneof ["Average grade" number]
+                       ["No Data" (constant "No Data")])])))

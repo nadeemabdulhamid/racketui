@@ -58,19 +58,22 @@
 (require "../web-launch.rkt")
 
 (define/web text-file/web
-  (structure make-text-file ["File name" string+] ["Number of lines" number]))
+  (structure make-text-file 
+             ["File name" string+] ["Number of lines" number]))
 (define/web image-file/web
-  (structure make-image-file ["File name" string+] 
-             ["Width (pixels)" number] ["Height (pixels)" number]
-             ["Full-color" boolean]))
+  (structure make-image-file
+             ["File name" string+] ["Width (pixels)" number] 
+             ["Height (pixels)" number] ["Full-color" boolean]))
 (define/web sound-file/web
-  (structure make-sound-file ["File name" string+] ["Duration of play (secs)" number]))
+  (structure make-sound-file 
+             ["File name" string+] ["Duration of play (secs)" number]))
+(define/web media/web
+  (oneof ["Text file" text-file/web]
+         ["Image file" image-file/web]
+         ["Sound file" sound-file/web]))
 
-(web-launch
- "File Size Computer"
- (function "Computes the size of a file in bytes"
-           (file-size ["Web media" (oneof ["Text file" text-file/web]
-                                          ["Image file" image-file/web]
-                                          ["Sound file" sound-file/web])]
+(web-launch "File Size Computer"
+ (function "Computes the size of a web media file in bytes"
+           (file-size ["Media file info" media/web]
                       -> ["Computed size in bytes" number])))
 

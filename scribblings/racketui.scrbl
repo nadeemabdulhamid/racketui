@@ -1,6 +1,7 @@
 #lang scribble/doc
 @(require planet/scribble
           ;scribble/eval
+          scriblib/footnote
           scribble/manual
           (for-label racket
                      "../main.rkt"
@@ -12,7 +13,13 @@
 This teachpack provides facilities for the
 quick and easy generation of web interfaces for programs written in 
 the @hyperlink["http://docs.racket-lang.org/htdp-langs/index.html"]{HtDP (@italic{How to Design Programs})}
-estudent languages of Racket.
+student languages of Racket.
+
+@bold{Browser Requirements:} RacketUI requires that the user's default web 
+browser be of a reasonably recent version and have JavaScript support
+and cookies enabled.
+
+@table-of-contents[]
 
 @section{Quick Start}
 
@@ -41,14 +48,16 @@ and then putting the following code beneath the definition of @racket[acronym]:
 (web-launch
  "Acronym Builder"
  (function 
-  "Produces an acronym of the capitalized words in the given list of words."
+  "Enter some words to build an acronym."
   (acronym ["Words" (listof+ ["Word" string+])]
-           ->["The acronym" string])))
+           -> ["The acronym" string])))
 ]
 
 Running this program should launch a web browser with a user
 interface that allows input of a list of words (strings) and controls
-to apply the function to that input and view the result.
+to apply the function to that input and view the result. 
+See the section on @secref{using} for details on the functionality provided by
+the generated web interface.
 
 
 @section{Web Field Specifications}
@@ -105,6 +114,10 @@ A @deftech{web spec} (web field specification) is one of
         represents a specification for the given function (@racket[proc]), consuming
         one or more parameters whose specifications precede @racket[->], and 
         producing data that meets the right-most specification.
+        
+        At the moment, only the outermost @tech{web spec} form should be a 
+        @racket[function], and it is what should be provided to @racket[web-launch] 
+        (see @secref{starting}).
         }
 ]
 
@@ -117,7 +130,7 @@ After this, @racket[id] can be used in any context where
 a @tech{web spec} is expected.
 
 
-@section{Starting a Web Application}
+@section[#:tag "starting"]{Starting a Web Application}
 
 To start a web application, use the following form:
 
@@ -127,6 +140,288 @@ where @racket[title] is a @racket[string] and @racket[web-spec] is a @racket[fun
 @tech{web spec}.
 
 @section{Examples}
+
+The @racket[acronym] example above requires the user to enter a list of at
+least one word (@racket[listof+]), where each word is not empty (@racket[string+]).
+The resulting output is a @racket[string], possibly empty.
+Here are a few additional examples demonstrating use of the @tech{web spec}
+forms.
+
+@subsection{A Union of Structures}
+
+Consider the following data definition:
+
+@racketblock[
+(code:comment @{A File is either:})
+(code:comment @{  - a Text-File (make-text-file String Number)})
+(code:comment @{  - an Image-File (make-image-file String Number Number), or})
+(code:comment @{  - a Sound-File (make-sound-file String Number)})
+(define-struct text-file (name lines))
+(define-struct image-file (name width height color?))
+(define-struct sound-file (name duration))
+]
+
+And suppose one has defined the following function:
+
+@racketblock[
+(code:comment @{file-size : File -> Number})
+(code:comment @{produces the size of the given file in bytes})
+(define (file-size a-file)
+  ...)
+]
+
+One can now proceed to define the corresponding @tech{web specs} for
+the data definitions:
+
+@racketblock[
+(define/web text-file/web
+  (structure make-text-file 
+             ["File name" string+] ["Number of lines" number]))
+(define/web image-file/web
+  (structure make-image-file
+             ["File name" string+] ["Width (pixels)" number] 
+             ["Height (pixels)" number] ["Full-color" boolean]))
+(define/web sound-file/web
+  (structure make-sound-file 
+             ["File name" string+] 
+             ["Duration of play (secs)" number]))
+
+(define/web media/web
+  (oneof ["Text file" text-file/web]
+         ["Image file" image-file/web]
+         ["Sound file" sound-file/web]))             
+]
+
+And the following form launches the web interface:
+
+@racketblock[
+(web-launch "File Size Computer"
+ (function "Computes the size of a web media file in bytes"
+           (file-size ["Media file info" media/web]
+                      -> ["Computed size in bytes" number])))
+]
+
+@subsection{List of Grades}
+
+Consider the following data definition for student exam grades:
+
+@racketblock[
+(code:comment @{ A Grade is either:})
+(code:comment @{   - a Number})
+(code:comment @{   - a String })
+(code:comment @{   - a Re-take (make-retake Number Number), or})
+(code:comment @{   - empty})
+(define-struct retake (fst snd))
+]
+
+A grade entry is either a simple numeric value recording the
+grade or a @racket[string] giving a reason for excusal for that particular
+exam (in which case the grade is not calculated in an average). 
+If the student missed the exam, indicate that using @racket[empty] 
+(counts as a 0). If the student attempted the exam twice, that is
+represented using a @racket[retake] structure.
+
+Of course, one must write an @racket[average] function (left as an 
+exercise for the reader):
+
+@racketblock[
+(code:comment @{ average: List-of-Grades -> Number })
+(code:comment @{ Produces the average of the given list of grades})
+(code:comment @{ ignoring excusals, counting missing grades as 0,})
+(code:comment @{ and taking into account the higher of two grades in })
+(code:comment @{ case of a retake.})
+(code:comment @{ If there are no values at all to average, produces})
+(code:comment @{ the string "No Data".})
+
+(define (average a-log)
+  ...)
+]
+
+A @tech{web spec} corresponding to the data definition above would
+be:
+
+@racketblock[
+(define/web grade/web
+  (oneof ["Actual grade" number]
+         ["Excused (reason)" string+]
+         ["Retake"  (structure make-retake
+                       ["First attempt" number]
+                       ["Second attempt" number])]
+         ["Missing" (constant empty)]))
+]
+
+And the web interface would be launched using:
+
+@racketblock[
+(web-launch "Grade Average Computer"
+ (function "Computes the average of grades in the given list."
+   (average ["Grades" (listof ["Grade Result" grade/web])]
+            -> ["Final Grade" 
+                (oneof ["Average grade" number]
+                       ["No Data" (constant "No Data")])])))
+]
+
+
+@subsection{Input/Output Files}
+
+The @racket[filename] @tech{web spec} is intended to be used 
+for functions that utilize the 
+@hyperlink["http://docs.racket-lang.org/teachpack/2htdpbatch-io.html"]{HtDP/2e
+Batch Input/Output} teachpack to read and/or write (text) files.
+
+Suppose one has written the following function:
+
+@racketblock[
+(code:comment @{ encryptFile : String String Number Boolean -> String})
+(code:comment @{ Opens the file with given name, encrypts every line })
+(code:comment @{ in the file using a caesar cipher with the given key})
+(code:comment @{ (converting to uppercase if upcase?) and writes the})
+(code:comment @{ encrypted lines to an output file with given name.})
+(code:comment @{ Produces the name of the output file upon completion.})
+
+(define (encryptFile in-file-name out-file-name secret-key upcase?)
+  ...)
+]
+
+The corresponding @tech{web spec} should use the @racket[filename]
+specification for strings that correspond to the names of files 
+whose content will be read as inputs, or written as outputs. 
+The generated web interface 
+will provide elements to upload input files and view (or download) 
+output files.
+
+@racketblock[
+(web-launch "!Encryptor!"
+ (function "Use this program to encrypt your most secret files."
+   (encryptFile ["Input file" filename]
+                ["Output file name" string+]
+                ["Secret key" number]
+                ["Uppercase?" boolean]
+                -> ["Encrypted file" filename])))
+]
+
+Note that the specification for the output file name is @racket[string+]
+not @racket[filename], because it really is only the @italic{name} of output file
+(not content) that is taken as input, unlike the input file whose content
+will be read. The result produced by the function is the name of an
+output file to which content has been written;
+using @racket[filename], the generated web interface will provide the
+user a link to download and view the file upon completion.
+             
+
+@section[#:tag "using"]{Using the Web Interface}
+
+Upon launch of a RacketUI web application, the user's web browser should
+open to a window containing three tabs: a @deftech{saved input} tab, a
+@deftech{program input} tab, and a @deftech{results} tab.
+
+
+@subsection{Program Input}
+
+RacketUI automatically generates a form with appropriate input elements
+laid out based on a @racket[function]'s @tech{web spec}. The user
+interface should be self-explanatory, as standard web form elements are
+used. 
+
+@itemlist[
+@item{The @racket[number],  @racket[symbol],  @racket[string] 
+specifications generate normal web form text boxes for the user's input.
+Upon attempting to apply the function, the input will be validated (e.g.
+to ensure it is a number, or a non-empty string). The @racket[boolean]
+input element is rendered as a labeled checkbox.}
+          
+@item{A @racket[listof] @tech{web spec} generates a list structure with
+handles allowing the user to reorder items in the list and buttons (with
+trash can icon) allowing the user to delete items in the list. }
+
+@item{@racket[oneof]
+specifications generate a popup menu where the user must choose one of the
+choices of the itemization; then appropriate input elements are provided 
+for that choice. }
+
+@item{For a @racket[(constant x)] specification, the value @racket[x]
+may be rendered as a string and displayed in a disabled input element (in 
+some contexts, only the label will be rendered for a @racket[constant]
+@tech{web spec}).}
+
+@item{File inputs display a platform-specific input element allowing the user
+to select a file for upload. Upon selection, the application will immediately
+beginning uploading the file. There is no way to cancel the upload (except
+by reloading the page (?)). When the file has been transferred to the application,
+its name will be displayed, along with a link to delete it from the input
+(this does not delete the file on the user's file system - only the temporary
+copy uploaded to the RacketUI application). The file's name itself is a link
+which will popup a separate window displaying the contents of the file. The
+user should also be able to right-click and save/download the file (this may
+be more useful with output files produced as a result of a function).}
+]
+
+Upon providing valid entries for all required input, when the user 
+clicks the "Apply input"
+button at the bottom of the page, the @tech{results} tab will be activated.
+The program's output result will be rendered at the top of the Results
+page, along with a display of the input below it. Clicking on the "Edit input again"
+button, or the "Program Input" tab will take the user back to the 
+@tech{program input} form to modify and reapply the input as desired.
+
+@subsection{Saved Input}
+
+@note{RacketUI save data is stored in a "racketui" subdirectory of
+the standard directory for storing the current user’s preferences.}
+
+With every function application, or when the user clicks the "Save current
+input" button in the @tech{program input} tab, RacketUI saves a snapshot of
+the user's input, including any uploaded files. This makes it easier to
+recall, modify, and re-apply input without having to enter it all over again.
+Saved input is preserved even when the application is terminated.
+
+The @tech{saved input} tab provides a drop-down menu with a list of saved
+input items, identified and sorted by time and date. When an entry is 
+selected, a preview of the input data is displayed in the bottom portion of 
+the page. One can also use the left and right arrow keys, or the "Previous entry"
+and "Next entry" links on the page, to easily browse through the input
+history.
+
+Initially, only input entries for the specific function that has been
+launched are shown in the saved list. However, if two distinct functions
+expect @italic{exactly} the same type of input, then RacketUI allows
+the user to view all saved input entries for such similar functions by
+clicking the "Include entries from similar programs" checkbox. Thus, if 
+another function had an input @tech{web spec} similar to that of
+@racket[acronym] above (i.e. @racket[["..." (listof+ ["..." string+])]] 
+or even @racket[["..." (listof ["..." string])]],
+where the actual labels don't matter), then the user can recall, edit,
+and apply lists of words entered from either web application on the
+@tech{saved input} tab of each if this checkbox is enabled.
+
+The list of saved input entries distinguishes between auto-saved
+and user-saved entries. The latter are displayed with asterisks and/or
+bold font in the menu. To filter the menu so that only user-saved
+entries are listed, click the "Only show user-saved input" checkbox.
+
+In addition to loading and editing, or applying, input entries can 
+also be individually or collectively deleted. Note that auto-saved
+entries are automatically purged -- only a certain number of the most
+recent auto-saved entries are kept.
+
+
+@subsection{Miscellaneous}
+
+The web application interface provided by RacketUI does not
+involve page navigation in the browser; thus the forward and back 
+buttons will not function. RacketUI occasionally saves the state
+of interaction, so even if the page is refreshed in the browser,
+any input that the user has entered should be reloaded. Also, if 
+no user interaction occurs for a period of time (several minutes),
+the RacketUI application may reload and refresh its state the
+next time the user interacts with it. Even in this situation, any
+user input should still be preserved in the @tech{program input} 
+tab.
+
+To exit the web application, click the "Exit ..." button at the very bottom 
+left of the window. If the program is being run from DrRacket, the
+Interactions pane of DrRacket will be suspended until the RacketUI
+application is terminated.
 
 
 
