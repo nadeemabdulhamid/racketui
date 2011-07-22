@@ -55,7 +55,7 @@
     [(tfield/boolean label name error value)
      (define label? parent-not-oneof/listof?)
      (render-basic/edit name '(tfield-boolean) 
-                   (and label? `(label ([for ,name]) ,label))
+                   (and label? `(label ([for ,name]) ,(colonize label)))
                    `(input ([type "checkbox"] [name ,name]
                             [id ,name] ,@(if value `([checked "checked"]) '())))
                    error)]
@@ -83,10 +83,10 @@
 
 
 
-; colonize : string -> string 
+; colonize : (or/c string xexpr) -> string 
 ; adds ": " to end of given string if it's not ""
 (define (colonize str)
-  (if (equal? str "") str (string-append str ": ")))
+  (if (or (not (string? str)) (string=? str "")) str (string-append str ": ")))
 
 
 ; div-wrapper: (listof symbol) -> [(listof xexpr) -> (or xexpr (listof xexpr))]
