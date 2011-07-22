@@ -1,9 +1,10 @@
 #lang setup/infotab
 
 (define name "RacketUI")
-(define version "0.5.2")
+(define version "0.5.3")
 (define release-notes
   (list '(ul
+          (li "Fixed colonize bug in render")
           (li "Added documentation")
           (li "Now supports input/output files"))))
 (define repositories
