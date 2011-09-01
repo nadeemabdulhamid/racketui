@@ -520,12 +520,13 @@
 (define (remove-save-file tf file-name)
   (define save-dir (build-path TEMP-DIR-BASE (save-directory-name tf)))
   (define file-path (build-path save-dir file-name))
-  (define uploads-dir (uploads-dir-of-temp-file save-dir file-path))
-  (when (directory-exists? uploads-dir)
-    (for ([file (directory-list uploads-dir)])
-      (delete-file (build-path uploads-dir file)))
-    (delete-directory uploads-dir))
-  (when (file-exists? file-path) (delete-file file-path)))
+  (when (file-exists? file-path) 
+    (define uploads-dir (uploads-dir-of-temp-file save-dir file-path))
+    (when (directory-exists? uploads-dir)
+      (for ([file (directory-list uploads-dir)])
+        (delete-file (build-path uploads-dir file)))
+      (delete-directory uploads-dir))
+    (delete-file file-path)))
 
 
 ;; remove-all-saves : tfield [boolean] -> void
