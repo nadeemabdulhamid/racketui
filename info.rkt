@@ -1,7 +1,7 @@
 #lang setup/infotab
 
 (define name "RacketUI")
-(define version "0.5.5")
+(define version "0.6.0")
 (define release-notes
   (list '(ul
           (li "Initial support for image fields added (specified by URL)"))))
