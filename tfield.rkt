@@ -1,9 +1,14 @@
 #lang racket
 
 (require racket/block
+         racket/draw
+         file/convertible
+         net/base64
+         xml
          (only-in srfi/13 string-trim-both)
          (for-syntax syntax/parse)
-         xml)
+         (prefix-in 2htdp: 2htdp/image)
+         )
 
 #| 
   A "tfield" represents the specification and input data for a web field of
@@ -17,6 +22,7 @@
     string (empty/non-empty)
     symbol
     file   (intended to work with 2htdp/batch-io teachpack)
+    image  (intended to work with 2htdp/image teachpack)
     structure (must be #:transparent, because of use of struct->vector)
     one-of (union of types)
     list-of
@@ -71,6 +77,7 @@ Implementation Notes and Subtleties:
 (struct tfield/number tfield (value raw-value) #:transparent)
 (struct tfield/string tfield (value non-empty?) #:transparent)
 (struct tfield/symbol tfield (value) #:transparent)
+(struct tfield/image tfield (mime-type data) #:transparent)
 (struct tfield/struct tfield (constr args) #:transparent)
 (struct tfield/oneof tfield (options chosen) #:transparent)
 (struct tfield/listof tfield (base elts non-empty?) #:transparent)
@@ -142,6 +149,8 @@ Implementation Notes and Subtleties:
   (derive-tfield-constructor tfield/string [value #f] [non-empty? #f]))
 (define new-tfield/symbol
   (derive-tfield-constructor tfield/symbol [value #f]))
+(define new-tfield/image
+  (derive-tfield-constructor tfield/image [mime-type #f] [data #f]))
 (define new-tfield/boolean 
   (derive-tfield-constructor tfield/boolean [value #f]))
 (define new-tfield/struct
@@ -181,6 +190,8 @@ Implementation Notes and Subtleties:
      #f]
     [(tfield/string label name error value non-empty?)
      #f]
+    [(tfield/image label name error mime-type data)
+     #f]
     [(tfield/file label name error file-name mime-type temp-path)
      #f]
     [(tfield/struct label name error constr args)
@@ -219,6 +230,8 @@ Implementation Notes and Subtleties:
     [(tfield/symbol label name error value)
      (true? error)]
     [(tfield/boolean label name error value)
+     (true? error)]
+    [(tfield/image label name error mime-type data)
      (true? error)]
     [(tfield/file label name error file-name mime-type temp-path)
      (true? error)]
@@ -261,6 +274,8 @@ Implementation Notes and Subtleties:
      (tfield/symbol label name #f #f)]
     [(tfield/boolean label name error value)
      (tfield/boolean label name #f #f)]
+    [(tfield/image label name error mime-type data)
+     (tfield/image label name #f #f #f)]
     [(tfield/file label name error file-name mime-type temp-path)
      (when (and finalize? temp-path (file-exists? temp-path))
        ;;;(printf "deleting ~a\n" temp-path)   ;; <<----- should be logged!!!
@@ -307,6 +322,9 @@ Implementation Notes and Subtleties:
      (and (string? value)
           (not (and non-empty? (string=? value ""))))]
     
+    [(tfield/image label name error mime-type data)
+     (and (string? mime-type) (bytes? data))]
+    
     [(tfield/file label name error file-name mime-type temp-path)
      (and (string? file-name) 
           (path-string? temp-path)
@@ -337,6 +355,7 @@ Implementation Notes and Subtleties:
 ;;=============================================================================
 ;;=============================================================================
 
+
 ; tfield->value : tfield -> any
 ; extracts the data value from the tfield, stripping away the tfield wrappers
 ; *** raises an error if filled? is false
@@ -357,6 +376,11 @@ Implementation Notes and Subtleties:
          value]
         [(tfield/boolean label name error value)
          value]
+        [(tfield/image label name error mime-type data)
+         (define inp (open-input-bytes (base64-decode data)))
+         (define bmp (make-object bitmap% inp 'unknown/alpha))
+         (close-input-port inp)
+         bmp]
         [(tfield/file label name error file-name mime-type temp-path)
          file-name]
         [(tfield/struct label name error constr args)
@@ -416,6 +440,13 @@ Implementation Notes and Subtleties:
     [(tfield/boolean label name error value)
      (and (boolean? v)
           (struct-copy tfield/boolean tf [value v]))]
+    
+    [(tfield/image label name error mime-type data)
+     (and (2htdp:image? v)
+          (let ([conv (convert v 'png-bytes)])
+            (and conv
+                 (struct-copy tfield/image tf
+                         [mime-type "image/png"] [data (base64-encode conv)]))))]
     
     [(tfield/file label name error file-name mime-type temp-path)
      ;; note: we don't delete the previous file if there is one...
@@ -513,6 +544,9 @@ Implementation Notes and Subtleties:
     [(tfield/boolean label name error value)
      (tfield/boolean label new-name error value)]
     
+    [(tfield/image label name error mime-type data)
+     (tfield/image label new-name error mime-type data)]
+    
     [(tfield/file label name error file-name mime-type temp-path)
      (tfield/file label new-name error file-name mime-type temp-path)]
 
@@ -561,6 +595,8 @@ Implementation Notes and Subtleties:
       [(tfield/symbol label name error value)
        (and value (symbol->string value))]
       [(tfield/boolean label name error value) (and value "on")]
+      [(tfield/image label name error mime-type data)
+       (and mime-type data (list "" mime-type data))]
       [(and tf/f (tfield/file label name error file-name mime-type temp-path))
        (cond [(filled? tf/f) (list file-name mime-type temp-path)]
              [file-name (list file-name #f #f)]  ; in-progress upload ?
@@ -590,7 +626,12 @@ Implementation Notes and Subtleties:
 ;; the actual content of the file; if it is a path-string? then it 
 ;; represents the path to an existing temporary file, to be reused (this is 
 ;; useful for validate)
-
+;;
+;; For images, if the key maps to a string, that is assumed to be a URL unless
+;; it is the string "*IMAGE*; if it is a triple like a file, then the first element 
+;; of the triple is to be ignored, and the second and third elements are the mime 
+;; type and the actual bytes of the image. If the key maps to the string "*IMAGE*"
+;; then any existing image data the tfield currently has is to be retained.
 
 
 
@@ -612,6 +653,7 @@ Implementation Notes and Subtleties:
 ;  error if that is not successful (i.e. if exception occurs either 
 ;  with tfield->value or when the function is actually applied)
 
+(define ERRMSG/NO-IMAGE "Image not specified")
 (define ERRMSG/NO-FILE "Must select an input file")
 (define ERRMSG/UPLOAD "File upload is not yet complete")
 (define ERRMSG/NOT-FILLED "Must be filled in")
@@ -680,6 +722,28 @@ Implementation Notes and Subtleties:
                      #f   ;; cannot distinguish missing from not selected 
                      ;; with HTMLform submission
                      (and (string? v) (string=? v "on")))]
+    
+    ;; ---- TFIELD/IMAGE ----
+    [(tfield/image label name error mime-type data)
+     (define v (lookup-func name))
+     (cond
+       [(equal? v "*IMAGE*") 
+        (if (and mime-type data) tf
+            (tfield/image label name (if validate? ERRMSG/NO-IMAGE error) #f #f))]
+       [(string? v)   ; URL (note: bitmap/url never fails?)
+        (with-handlers ([exn:fail? 
+                         (λ(exn)
+                           (tfield/image label name (if validate? ERRMSG/NO-IMAGE error)
+                                         #f #f))])
+          (define the-url 
+            (if (regexp-match #rx"^http://" v) v (string-append "http://" v)))
+          (define img-bytes 
+            (base64-encode (convert (2htdp:bitmap/url the-url) 'png-bytes)))
+          (tfield/image label name #f "image/png" img-bytes))]
+       [(and (list? v) (string? (second v)) (bytes? (third v)))
+        (tfield/image label name #f (second v) (third v))]
+       [else
+        (tfield/image label name (if validate? ERRMSG/NO-IMAGE error) #f #f)])]
     
     ;; ---- TFIELD/FILE ----
     [(tfield/file label name error file-name mime-type temp-path)
@@ -889,7 +953,7 @@ Implementation Notes and Subtleties:
   (match tf
     [(or (? tfield/const? _) (? tfield/number? _)
          (? tfield/string? _) (? tfield/boolean? _)
-         (? tfield/symbol? _))
+         (? tfield/symbol? _) (? tfield/image? _))
      #t]
 
     [(tfield/file label name error file-name mime-type temp-path)
@@ -926,7 +990,7 @@ Implementation Notes and Subtleties:
   (match tf
     [(or (? tfield/const? _) (? tfield/number? _)
          (? tfield/string? _) (? tfield/boolean? _)
-         (? tfield/symbol? _))
+         (? tfield/symbol? _) (? tfield/image? _))
      #t]
     [(tfield/file label name error file-name mime-type temp-path)
      (if (and file-name temp-path)
@@ -1007,7 +1071,7 @@ Implementation Notes and Subtleties:
   (match tf
     [(or (? tfield/const? _) (? tfield/number? _)
          (? tfield/string? _) (? tfield/boolean? _)
-         (? tfield/symbol? _) (? tfield/file? _))
+         (? tfield/symbol? _) (? tfield/file? _) (? tfield/image? _))
      (and (pred tf) (tf-func tf))]
 
     [(tfield/struct label name error constr args)
@@ -1106,6 +1170,7 @@ Implementation Notes and Subtleties:
     [(tfield/number label name error value raw-value) (proc tf init)]
     [(tfield/symbol label name error value) (proc tf init)]
     [(tfield/string label name error value non-empty?) (proc tf init)]
+    [(tfield/image label name error mime-type data) (proc tf init)]
     [(tfield/file label name error file-name mime-type temp-path) (proc tf init)]
     [(tfield/struct label name error constr args) 
      (proc tf (foldl (λ(f i) (fold f proc i)) init args))]
@@ -1194,7 +1259,7 @@ Implementation Notes and Subtleties:
 
 (provide ERRMSG/NOT-FILLED ERRMSG/NOT-NUMBER ERRMSG/MISSING-INPUT
          ERRMSG/SELECT-OPTION ERRMSG/FUNC-APP ERRMSG/MISMATCH
-         ERRMSG/NO-FILE ERRMSG/UPLOAD)
+         ERRMSG/NO-FILE ERRMSG/UPLOAD ERRMSG/NO-IMAGE)
 
 (provide/contract
  
@@ -1225,6 +1290,12 @@ Implementation Notes and Subtleties:
     (name   string?)
     (error (or/c #f xexpr/c))
     (value  (or/c #f symbol?)))] 
+ [struct (tfield/image tfield)
+   ((label (or/c #f string?))
+    (name   string?)
+    (error (or/c #f xexpr/c))
+    (mime-type (or/c #f string?))
+    (data (or/c #f bytes?)))]
  [struct (tfield/boolean tfield)
    ((label  (or/c #f string?))
     (name   string?)
@@ -1291,6 +1362,10 @@ Implementation Notes and Subtleties:
                          ((or/c #f symbol?) #:name string?
                                             #:error (or/c #f xexpr/c))
                          tfield/symbol?))
+ (new-tfield/image (->* ((or/c #f string?))
+                        ((or/c #f string?) (or/c #f bytes?) 
+                                  #:name string? #:error (or/c #f xexpr/c)) 
+                         tfield/image?))
  (new-tfield/struct (->* ((or/c #f string?) procedure? (listof tfield?))
                          (#:name string? #:error (or/c #f xexpr/c))
                          tfield/struct?))

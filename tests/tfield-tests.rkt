@@ -5,6 +5,11 @@
          rackunit/text-ui
          "../tfield.rkt")  
 (require 2htdp/batch-io)  ; for tfield/file tests
+(require   ; for tfield/image tests
+ file/convertible
+ net/base64
+ (prefix-in 2htdp: 2htdp/image)
+ )
 
 ;; TODO: tests for (clear) are lacking...
 ;; TODO: tests exercising tfield/listof with  non-empty?
@@ -85,6 +90,13 @@
                                       #:name "f")
                    (tfield/listof "numbers" "f" #f 
                                   (tfield/number "num" "e" #f #f #f) empty #f))
+     (check-equal? (new-tfield/image "mugshot" #:name "i")
+                   (tfield/image "mugshot" "i" #f #f #f))
+     (check-equal? (new-tfield/image "mugshot2" #:name "i2"
+                                     "image/png" #"abcdefg")
+                   (tfield/image "mugshot2" "i2" #f "image/png" #"abcdefg"))
+                                     
+                                     
      )))
 
 
@@ -259,6 +271,74 @@
                    (new-tfield/number "a num" #f #f #:name (tfield-name tfn3))
                    )
      )))
+
+
+(define tfield/image-tests
+  (test-suite
+   "Tests for tfield/image"
+   (let* ([tfi1 (new-tfield/image "mugshot" #:name "i1")]
+          [tfi2 (new-tfield/image "mugshot2" #:name "i2"
+                                  "image/png" #"abcdefg")]
+          [tfi3 (new-tfield/image "reddot" "image/png" #"iVBORw0KGgoAAAANSUhEUgAAAAUA
+AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO
+9TXL0Y4OHwAAAABJRU5ErkJggg==" #:name "i3")]
+          
+          [iconurl "http://pre.plt-scheme.org/racket/collects/gui-debugger/icons/icon.png"]
+          [icon-enc (base64-encode (convert (2htdp:bitmap/url iconurl) 'png-bytes))]
+          [f (λ(n) (match n
+                     ["i2" iconurl] 
+                     [_ #f]))]
+          [g (λ(n) (match n
+                     ["i2" iconurl] 
+                     ["i1" (list "icon.png" "image/png" icon-enc)]                                 
+                     [_ #f]))]
+         )
+     
+     ; any-error? filled?
+     (check-false (any-error? tfi1))
+     (check-false (any-error? tfi2))
+     (check-false (filled? tfi1))
+     (check-true (filled? tfi2))
+     (check-true (filled? tfi3))
+     
+     ; clear
+     (check-equal? (clear tfi1) tfi1)
+     (check-equal? (clear tfi2) (tfield/image "mugshot2" "i2" #f #f #f))
+     
+     ; value
+     (check-true (2htdp:image? (tfield->value tfi3)))
+     (check-true (2htdp:image? (tfield->value tfi2))) ; bad image, but image
+     (check-true (2htdp:image? 
+                  (tfield->value 
+                   (value->tfield tfi1 (2htdp:circle 20 "solid" "blue")))))
+     
+     ; rename
+     (check-equal? (rename/deep tfi2 "b")
+                   (new-tfield/image "mugshot2" #:name "b" "image/png" #"abcdefg"))
+     (check-equal? tfi2 (new-tfield/image "mugshot2" #:name "i2"
+                                          "image/png" #"abcdefg"))
+     
+     ; validate / parse
+     (check-equal? (validate tfi3) tfi3)
+     (check-equal? (validate tfi1)
+                   (new-tfield/image "mugshot" #:name "i1"
+                                     #:error ERRMSG/NO-IMAGE))
+
+     (check-equal? (parse tfi1 f #f) tfi1)
+     (check-equal? (parse tfi1 f) (new-tfield/image "mugshot" #:name "i1"
+                                                    #:error ERRMSG/NO-IMAGE))
+     (check-equal? (parse tfi3 f) (new-tfield/image "reddot" #:name "i3"
+                                                    #:error ERRMSG/NO-IMAGE))
+     (check-equal? (parse tfi2 f)
+                   (new-tfield/image "mugshot2" #:name "i2" "image/png" icon-enc))
+     (check-equal? (parse tfi1 g)
+                   (new-tfield/image "mugshot" #:name "i1" "image/png" icon-enc))     
+     
+     )))
+     
+
+
+     
 
 
 (define tfield/string-tests
@@ -879,6 +959,7 @@
    tfield/string-tests
    tfield/symbol-tests
    tfield/boolean-tests
+   tfield/image-tests
    tfield/file-tests
    tfield/struct-tests
    tfield/oneof-tests

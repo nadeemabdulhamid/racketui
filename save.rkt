@@ -54,7 +54,7 @@
 |#
 
 
-;; TODO: add deletion functionality
+;; (I believe this is done) TODO: add deletion functionality
 ;; (remove a single data file, all files for a tfield, 
 ;;  all files loosely matching, all saved files)
 
@@ -76,6 +76,7 @@
 ;;   - 'string
 ;;   - 'symbol
 ;;   - 'boolean
+;;   - 'image
 ;;   - 'file
 ;;   - '(structure (... skel-expr ...))
 ;;   - '(structure constr-name (... skel-expr ...))  *constr-name is a symbol
@@ -91,6 +92,7 @@
 ;;    - <string>
 ;;    - <symbol>
 ;;    - <boolean>
+;;    - (list 'image <string> <bytes/base64>)
 ;;    - (list 'file <string> <string> <string>)
 ;;    - (list 'structure <data-expr> ...)   
 ;;    - (list 'oneof <number/boolean> <data-expr>)   <-- the selected option
@@ -117,6 +119,8 @@
      'symbol]
     [(? tfield/boolean? _)
      'boolean]
+    [(? tfield/image? _)
+     'image]
     [(? tfield/file? _)
      'file]
     [(tfield/struct label name errors constr args)
@@ -161,7 +165,8 @@
 
 
 ;; tfield->data-expr : tf -> data-expr
-
+;; converts a tfield into a data-expr, representing what should
+;; be serialized to storage for that tfield
 (define (tfield->data-expr tf)
   (match tf
     [(tfield/const label name errors value)
@@ -174,6 +179,8 @@
      value]
     [(tfield/boolean label name errors value)
      value]
+    [(tfield/image label name error mime-type data)
+     (list 'image mime-type data)]
     [(tfield/file label name error file-name mime-type temp-path)
      (list 'file file-name mime-type (and temp-path (path->string temp-path)))]
     [(tfield/struct label name errors constr args)
@@ -191,7 +198,9 @@
 
 
 ;; unify-data-expr/tfield : tf data-expr -> tf
-
+;; attempt to match a data-expr with a tfield and copy data values
+;; into the tfield; if not successful, the tfield is returned cleared
+;; of data
 (define (unify-data-expr/tfield otf de)
   (define tf (clear otf #f))
   (match tf
@@ -209,6 +218,13 @@
      (struct-copy tfield/symbol tf [value (and (symbol? de) de)])]
     [(tfield/boolean label name errors value)
      (struct-copy tfield/boolean tf [value (equal? #t de)])]
+    [(tfield/image label name error mime-type data)
+;;    - (list 'image <string> <bytes/base64>)
+     (if (and (cons? de) (equal? 'image (first de))
+              (= (length (rest de)) 2))
+         (struct-copy tfield/image tf
+                      [mime-type (second de)] [data (third de)])
+         tf)]
     [(tfield/file label name error file-name mime-type temp-path)
      (if (and (cons? de) (equal? 'file (first de))
               (= (length (rest de)) 3))

@@ -280,8 +280,11 @@
     
     ['file-clear    ;; parses form data too
      (define name (event-binding ev "name"))
-     (update-named (parse tf lookup-func #f #f) name 
-                   clear)]
+     (update-named (parse tf lookup-func #f #f) name clear)]
+    
+    ['image-clear
+     (define name (event-binding ev "name"))
+     (update-named (parse tf lookup-func #f #f) name clear)]
     
      [_ tf]))
 
@@ -390,7 +393,7 @@
     ; a number of events just need to replace the updated outer <div>
     ; as a response...
     [(or 'listof-reorder 'listof-delete 'oneof-change 'listof-add 
-         'file-upload 'file-clear)
+         'file-upload 'file-clear 'image-clear)
      (define name (event-binding ev "name"))
      (define divname (format "#edit-args #~a-div" name))
      `(taconite
@@ -464,7 +467,15 @@
      `(taconite (eval "populateSaved();"))]
     
     ['update-field
-     `(taconite ,cont-url-update/xexpr)]
+     (define name (event-binding ev "name"))
+     (define divname (format "#edit-args #~a-div" name))
+     (define found-tf (find-named tf name))
+     (if (tfield/image? found-tf)
+         `(taconite
+           (replaceWith ([select ,divname])
+                        ,(render/edit found-tf (find-parent-of-named tf name)))
+           ,cont-url-update/xexpr)
+         `(taconite ,cont-url-update/xexpr))]
     
     [_ `(empty-response)]))
 

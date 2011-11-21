@@ -5,7 +5,7 @@
 (require 2htdp/batch-io)
 (require racket/string)  ; string-join
 
-(require (planet "main.rkt" ("nah22" "racketui.plt" 1 2)))
+(require (planet nah22/racketui))
 
 ; reverser : file-name number -> file-name
 ; produces the name of the output file in which all lines from 

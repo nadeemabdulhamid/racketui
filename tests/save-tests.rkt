@@ -76,7 +76,11 @@
                 title text samp-func
                 (list (value->tfield tl1 (list 30 40 24)) (value->tfield ts1 "bob"))
                 (value->tfield to1 (entry 94 "bob")) 
-                #:name "h")]          
+                #:name "h")]  
+          
+          [tfi1 (new-tfield/image "mugshot" #:name "i1")]
+          [tfi2 (new-tfield/image "mugshot2" #:name "i2"
+                                  "image/png" #"abcdefg")]
           )
      
      (check-equal? (tfield->skel-expr tn1) 'number)
@@ -106,6 +110,9 @@
      (check-equal? (tfield->skel-expr tf1 #t) 
                    '(function samp-func ((listof number) string 
                               (oneof constant (structure entry (number string))))))
+     
+     (check-equal? (tfield->skel-expr tfi1) 'image)
+     (check-equal? (tfield->skel-expr tfi2) 'image)
      
      (check-equal? (tfield->skel-expr tf1) (tfield->skel-expr tf1/p))
      (check-equal? (tfield->skel-expr tf1 #t) (tfield->skel-expr tf1/p #t))
@@ -179,6 +186,10 @@
                 (list (value->tfield tl1 (list 30 40 24)) (value->tfield ts1 "bob"))
                 (value->tfield to1 (entry 94 "bob")) 
                 #:name "h")]          
+          
+          [tfi1 (new-tfield/image "mugshot" #:name "i1")]
+          [tfi2 (new-tfield/image "mugshot2" #:name "i2"
+                                  "image/png" #"abcdefg")]
           )
 
      (check-equal? (tfield->data-expr tn1) 4)
@@ -195,6 +206,9 @@
                    '(oneof 1 (structure 25 "hi")))
      (check-equal? (tfield->data-expr te1) '(structure 4 #f))
      (check-equal? (tfield->data-expr tf1) '(function (listof) #f))
+     
+     (check-equal? (tfield->data-expr tfi1) '(image #f #f))
+     (check-equal? (tfield->data-expr tfi2) '(image "image/png" #"abcdefg"))
      
      )))
 
@@ -269,9 +283,12 @@
                 title text samp-func
                 (list (value->tfield tl1 (list 30 40 24)) (value->tfield ts1 "bob"))
                 (value->tfield to1 (entry 94 "bob")) 
-                #:name "h")]          
+                #:name "h")]        
+          
+          [tfi1 (new-tfield/image "mugshot" #:name "i1")]
+          [tfi2 (new-tfield/image "mugshot2" #:name "i2" "image/png" #"abcdefg")]
           )
-  
+     
      (check-equal? (unify-data-expr/tfield tcst1 #f) tcst1)
      (check-equal? (unify-data-expr/tfield tn1 #f) 
                    (new-tfield/number "a number" #f #f #:name "a"))
@@ -332,7 +349,16 @@
                     (unify-data-expr/tfield tf1 '(function (listof 3 2 1) "hello")))
                    (clear to1))  ;; result is NOT filled in by unify-data-expr/tfield
                    ;;(value->tfield to1 (samp-func '(3 2 1) "hello")))
-     
+
+     (check-equal? (unify-data-expr/tfield tfi1 #f) tfi1)
+     (check-equal? (unify-data-expr/tfield tfi2 #f) 
+                   (new-tfield/image "mugshot2" #:name "i2" #f #f))
+     (check-equal? (unify-data-expr/tfield tfi2 "image/png") 
+                   (new-tfield/image "mugshot2" #:name "i2" #f #f))
+     (check-equal? (unify-data-expr/tfield tfi1 '(image "image/gif" #"123abc=\n"))
+                   (new-tfield/image "mugshot" #:name "i1"
+                                     "image/gif" #"123abc=\n"))
+
      )))
 
 

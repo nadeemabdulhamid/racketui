@@ -30,6 +30,7 @@
              |  symbol
              |  string+
              |  filename
+             |  image
 
              |  (function <string> (<proc> <lab-spec> ... -> <lab-spec>))
              |  (structure <constr> <lab-spec> ...+)
@@ -80,6 +81,7 @@
     (pattern (~and header
                    (~or (~datum number) (~datum boolean) (~datum string)
                         (~datum string+) (~datum symbol) (~datum filename)
+                        (~datum image)
                         (~datum constant) (~datum structure) (~datum check)
                         (~datum oneof) (~datum listof) (~datum listof+)
                         (~datum function)))))
@@ -132,6 +134,7 @@
                 [(web-spec (~datum string)) #'(quote string)]  
                 [(web-spec (~datum string+)) #'(quote string+)]
                 [(web-spec (~datum symbol)) #'(quote symbol)]
+                [(web-spec (~datum image)) #'(quote image)]
                 [(web-spec (~datum filename)) #'(quote filename)]
                 [(web-spec ((~datum function) txt:str (f:identifier 
                                                           p:lab-spec/sp ... 
@@ -189,6 +192,7 @@
     ['string+      (λ(lab) (new-tfield/string lab #f #t))]
     ['symbol       new-tfield/symbol]
     ['filename     new-tfield/file]
+    ['image        new-tfield/image]
     [(list 'constant v) (λ(s) (new-tfield/const s v))]
     [(list 'function txt (list func params ... '-> rspec))
      (λ(s) (new-tfield/function s txt func (map parse/lab-spec params)
@@ -212,6 +216,3 @@
 
 (provide define/web)  ; this is for users
 
-
- 
- 

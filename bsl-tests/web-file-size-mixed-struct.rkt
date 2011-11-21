@@ -55,7 +55,8 @@
 
 
 
-(require "../web-launch.rkt")
+(require (planet nah22/racketui))
+
 
 (define/web text-file/web
   (structure make-text-file 

@@ -18,8 +18,7 @@
                                          (acronym (rest a-los)))]
                          [else (acronym (rest a-los))])]))
 
-(require racket/base)
-(require (planet nah22/racketui:1:1))
+(require (planet nah22/racketui))
 ; (require (planet "main.rkt" ("nah22" "racketui.plt" 1 1)))
 
 (web-launch

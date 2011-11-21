@@ -156,7 +156,7 @@ function makeRequestFunc( type, params, sendFormData, myops ) {
 /* for attempting to restart entire application in case of 
    AJAX error */
 function ajaxErrorHandler(jqXHR, textStatus, errorThrown) {
-	if (textStatus == 'error' && errorThrown == 'File not found') {
+	if (textStatus == 'error') {   // && errorThrown == 'File not found') {
 		CONT_URL = BASE_URL;
 		$.blockUI({ message: $("#reloadMessage") });
 		$.when(
@@ -315,6 +315,11 @@ function viewFile(elt, tfieldid, savefilename) {
 
 function clearFile(tfieldid) {
 	makeRequest("file-clear", { name : tfieldid });
+	return false;
+}
+
+function clearImage(tfieldid) {
+	makeRequest("image-clear", { name : tfieldid });
 	return false;
 }
 

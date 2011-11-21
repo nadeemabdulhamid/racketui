@@ -16,6 +16,7 @@
 (check-expect (web-spec string+) 'string+)
 (check-expect (web-spec boolean) 'boolean)
 (check-expect (web-spec filename) 'filename)
+(check-expect (web-spec image) 'image)
 (check-expect
  (rest (rest    ; check-expect doesn't compare procedures (make-boa)
         (web-spec (structure make-boa
@@ -29,10 +30,12 @@
  (web-spec
   (oneof ["Grade value" number]
          ["Unrecorded" boolean]
+         ["Mugshot" image]
          ["Retakes" (listof ["Grade" number])]
          ["Pass" symbol]))
  '(oneof ["Grade value" number]
          ["Unrecorded" boolean]
+         ["Mugshot" image]
          ["Retakes" (listof ["Grade" number])]
          ["Pass" symbol]))
 
@@ -57,18 +60,20 @@
 
 (define/web tempconv-func/web
   "Temperature Converter"
-  (function "This program converts Fahrenheit to Celsius."
+  (function "This program converts Fahrenheit to Celsius and superimposes on a picture."
             (fah->cel ["Degrees in Fahrenheit" number] ["Integral only" boolean]
+                      ["Background picture" image]
                       -> ["Degrees in Celsius" number])))
 
 (check-expect (equal?
                tempconv-func/web
                `("Temperature Converter"
                  (function
-                  "This program converts Fahrenheit to Celsius."
+                  "This program converts Fahrenheit to Celsius and superimposes on a picture."
                   (,fah->cel
                    ("Degrees in Fahrenheit" number)
                    ("Integral only" boolean)
+                   ("Background picture" image)
                    ->
                    ("Degrees in Celsius" number)))))
               #t)

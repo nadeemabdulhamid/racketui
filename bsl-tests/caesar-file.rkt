@@ -41,7 +41,7 @@
                 "\n")))
 
 
-(require (planet "main.rkt" ("nah22" "racketui.plt" 1 5)))
+(require (planet nah22/racketui))
 
 (web-launch "!Encryptor!"
  (function "Use this program to encrypt your most secret files."

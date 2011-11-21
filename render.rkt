@@ -72,6 +72,7 @@
      (define label? parent-not-oneof/listof?)
      (render-basic/edit name '(tfield-string) (and label? label) 
                    (input-text-of name (or value "")) error)]
+    [(? tfield/image? _) (render-image/edit tf parent)]
     [(? tfield/file? _) (render-file/edit tf parent)]     
     [(? tfield/struct? _) (render-struct/edit tf parent)]
     [(? tfield/oneof? _)  (render-oneof/edit tf parent)]
@@ -108,6 +109,30 @@
    (list (if label `(span ([class "label"]) ,(colonize label)) "")
          input-elt
          (if error `(span ([class "error"]) ,error) ""))))
+
+
+; render-image/edit : tfield/image (or #f tfield) -> xexpr
+(define (render-image/edit tf parent) 
+  (define label? (and (not (tfield/oneof? parent))
+                      (not (tfield/listof? parent))))
+  (match tf
+    [(tfield/image label name error mime-type data)
+     (define inner-content
+       (cond
+         [(and mime-type data)
+          `(span
+            (input ([type "hidden"] [id ,name] [name ,name]
+                                    [value "*IMAGE*"]))
+            (img ([src ,(string-append "data:" mime-type ";base64," 
+                                      (bytes->string/locale data))]))
+            ,(image-clear-link name))]
+         [else
+          `(input ([type "text"] [name ,name] [id ,name] [size "35"]
+                                 [placeholder "URL"]))
+          ]))
+     (render-basic/edit name '(tfield-image) (and label? label)
+                        inner-content error)]))
+
 
 ; render-file/edit : tfield/file (or #f tfield) -> xexpr
 (define (render-file/edit tf parent)
@@ -259,6 +284,14 @@
      (render-basic/disp name '(tfield-string) (and parent-not-listof? label)
                         (if (equal? value "") "-"
                             (or value "-")))]
+    [(tfield/image label name error mime-type data)
+     (render-basic/disp name '(tfield-image) (and parent-not-listof? label)
+                        (if (and mime-type data)
+                            `(img ([src ,(string-append "data:" mime-type
+                                                        ";base64,"
+                                                        (bytes->string/locale data))]))
+                            "-"))]
+    
     [(tfield/file label name error file-name mime-type temp-path)
         (render-basic/disp name '(tfield-file) (and parent-not-listof? label)
                       (file-view-link name file-name save-file))]
@@ -317,6 +350,13 @@
      [type "button"]
      [onClick ,(format "clearFile('~a'); return false;" name)])
       "remove"))
+
+;; image-clear-link : string -> xexpr
+(define (image-clear-link name)
+  `(button
+    ([id ,(format "~a-clearbtn" name)] [class "imageclear"]
+     [type "button"] [onClick ,(format "clearImage('~a'); return false;" name)])
+     "remove"))
 
 
 

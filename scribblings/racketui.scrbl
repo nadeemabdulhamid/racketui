@@ -84,16 +84,17 @@ field specification, which we call a @deftech{labeled spec}, is a pair
 A @deftech{web spec} (web field specification) is one of
 @itemlist[
  @item{ @defform/none[#:literals (constant) (constant x)] where @racket[x] is any value }
- @item{ @defform/none[#:literals (boolean) boolean] }
+ @item{ @defform/none[#:literals (boolean) boolean]{} }
  @item{ @defform/none[#:literals (number) number] }
  @item{ @defform/none[#:literals (symbol) symbol] }
  @item{ @defform/none[#:literals (string) string] }
  @item{ @defform/none[#:literals (string+) string+] for non-empty strings }
+ @item{ @defform/none[#:literals (image) image] }
  @item{ @defform/none[#:literals (filename) filename] for
         functions that expect the name of an input file whose content will 
         be read, or that produce
         the name of a generated output file }
- @item{ @defform/none[#:literals (structure) (structure constr lab-spec ...+)] 
+ @item{ @defform/none[#:literals (structure) (structure constr lab-spec ...+)]
         where @racket[constr] is a structure constructor and 
         @racket[lab-spec] are one or more @tech{labeled specs}
         corresponding to the types expected for the fields of the
@@ -308,7 +309,26 @@ will be read. The result produced by the function is the name of an
 output file to which content has been written;
 using @racket[filename], the generated web interface will provide the
 user a link to download and view the file upon completion.
-             
+
+@subsection{Images}
+
+The @racket[image] @tech{web spec} provides UI elements allowing the user to
+specify an image (currently by given a URL) that will be loaded and provided
+as a bitmap to the function, or returned from a function as a bitmap.
+
+The following could be a @tech{web spec} for a function that generates an
+image with clock hands on a given background image.
+
+@racketblock[
+(web-launch
+ "Clock Image Generator"
+ (function "Generates an image of a clock on a background of your choice (should be round'ish)."
+           (time-clock ["Background image" image]
+                       ["Hour" number]
+                       ["Minutes" number]
+                       -> ["Clock image" image])))
+]
+
 
 @section[#:tag "using"]{Using the Web Interface}
 

@@ -25,7 +25,6 @@
         )
   )
 
-(require racket/base)
 (require (planet nah22/racketui))
 ; (require (planet "main.rkt" ("nah22" "racketui.plt" 1 1)))
 
