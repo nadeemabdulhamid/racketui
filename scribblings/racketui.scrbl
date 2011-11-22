@@ -53,11 +53,24 @@ and then putting the following code beneath the definition of @racket[acronym]:
            -> ["The acronym" string])))
 ]
 
+@note{The first time you run a program that uses RacketUI, it will take a minute
+      or two to download and install the library from the PLaneT server.}
+
 Running this program should launch a web browser with a user
 interface that allows input of a list of words (strings) and provides controls
-to apply the function to the input and view the result. 
+to apply the function to the input and view the result (screenshot below). 
 See the section on @secref{using} for details on the functionality provided by
 the generated web interface.
+
+@image[#:scale .5]{screenshots/acronym-input.png}
+
+After entering input values and clicking the "Apply input" button, the entries
+will be validated and then used as parameters to the underlying @code{acronym}
+function, producing a results page:
+
+@image[#:scale .5]{screenshots/acronym-result.png}
+
+
 
 
 @section{Web Field Specifications}
@@ -72,45 +85,41 @@ For the purposes of generating a user-friendly interface, specifications
 are annotated with text informally describing their purpose or 
 interpretation in the context of the program. 
 
+@itemlist[
+ @item{ 
 An annotated web
 field specification, which we call a @deftech{labeled spec}, is a pair
 
-@itemlist[
- @item{ @defform/none[[label spec]] 
+@defform/none[[label spec]] 
        where @racket[label] is a @racket[string] and @racket[spec] is a @tech{web spec}. }
- ]
 
-
+ @item{
 A @deftech{web spec} (web field specification) is one of
-@itemlist[
- @item{ @defform/none[#:literals (constant) (constant x)] where @racket[x] is any value }
- @item{ @defform/none[#:literals (boolean) boolean]{} }
- @item{ @defform/none[#:literals (number) number] }
- @item{ @defform/none[#:literals (symbol) symbol] }
- @item{ @defform/none[#:literals (string) string] }
- @item{ @defform/none[#:literals (string+) string+] for non-empty strings }
- @item{ @defform/none[#:literals (image) image] }
- @item{ @defform/none[#:literals (filename) filename] for
+ @defform/none[#:literals (constant) (constant x)] where @racket[x] is any value
+ @defform/none[#:literals (boolean) boolean]
+ @defform/none[#:literals (number) number] 
+ @defform/none[#:literals (symbol) symbol] 
+ @defform/none[#:literals (string) string] 
+ @defform/none[#:literals (string+) string+] for non-empty strings 
+ @defform/none[#:literals (image) image] 
+ @defform/none[#:literals (filename) filename] for
         functions that expect the name of an input file whose content will 
         be read, or that produce
-        the name of a generated output file }
- @item{ @defform/none[#:literals (structure) (structure constr lab-spec ...+)]
+        the name of a generated output file 
+ @defform/none[#:literals (structure) (structure constr lab-spec ...+)]
         where @racket[constr] is a structure constructor and 
         @racket[lab-spec] are one or more @tech{labeled specs}
         corresponding to the types expected for the fields of the
         structure
-        }
- @item{ @defform/none[#:literals (oneof) (oneof lab-spec ...+)] 
+ @defform/none[#:literals (oneof) (oneof lab-spec ...+)] 
         where @racket[lab-spec] are one or more @tech{labeled specs}
         corresponding to an itemization (union) of specifications
-        }
- @item{ @defform/none[#:literals (listof) (listof lab-spec)] or,
+ @defform/none[#:literals (listof) (listof lab-spec)] or,
         for non-empty lists,
         @defform/none[#:literals (listof+) (listof+ lab-spec)] 
         where @racket[lab-spec] is a @tech{labeled spec} describing
         the type of elements in the list
-        }
- @item{ @defform/none[#:literals (function ->) (function purpose (proc lab-spec ...+ -> lab-spec))]
+ @defform/none[#:literals (function ->) (function purpose (proc lab-spec ...+ -> lab-spec))]
         where @racket[purpose] is a @racket[string], @racket[proc] is the name of a procedure,
         and @racket[lab-spec] are @tech{labeled specs}. This form
         represents a specification for the given function (@racket[proc]), consuming
@@ -120,9 +129,9 @@ A @deftech{web spec} (web field specification) is one of
         At the moment, only the outermost form of a @tech{web spec} should be a 
         @racket[function], and it is what should be provided to @racket[web-launch] 
         (see @secref{starting}).
-        }
+}
 ]
-
+        
 It is possible to define a name for specifications that occur
 repeatedly:
 
@@ -326,8 +335,20 @@ image with clock hands on a given background image.
            (time-clock ["Background image" image]
                        ["Hour" number]
                        ["Minutes" number]
+                       ["Hour hand color" color/web]
+                       ["Minute hand color" color/web]
+                       ["Draw outside frame" boolean]
                        -> ["Clock image" image])))
 ]
+
+Here is a representative screenshot of the input tab for a function that
+expects an image input:
+
+@image[#:scale .5]{screenshots/clock-input.png}
+
+and the result after applying the function:
+
+@image[#:scale .5]{screenshots/clock-result.png}
 
 
 @section[#:tag "using"]{Using the Web Interface}
@@ -424,6 +445,10 @@ In addition to loading and editing, or applying, input entries can
 also be individually or collectively deleted. Note that auto-saved
 entries are automatically purged -- only a certain number of the most
 recent auto-saved entries are kept.
+
+Here is screenshot showing a typical view of the saved input tab:
+
+@image[#:scale .5]{screenshots/encryptor-saved.png}
 
 
 @subsection{Miscellaneous}

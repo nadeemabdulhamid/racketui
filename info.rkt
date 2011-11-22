@@ -4,7 +4,9 @@
 (define version "0.6.0")
 (define release-notes
   (list '(ul
-          (li "Initial support for image fields added (specified by URL)"))))
+          (li "Initial support for image fields added (specified by URL)")
+          (li "Documentation updates (added screenshots)")
+          )))
 (define repositories
   (list "4.x"))
 (define required-core-version
