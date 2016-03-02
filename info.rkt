@@ -19,3 +19,11 @@
 (define compile-omit-paths
   (list "tests"
         "bsl-tests"))
+(define deps '("base"
+               "draw-lib"
+               "htdp-lib"
+               "srfi-lite-lib"
+               "web-server-lib"))
+(define build-deps '("planet-doc"
+                     "racket-doc"
+                     "scribble-lib"))
