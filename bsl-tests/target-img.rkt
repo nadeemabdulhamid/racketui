@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname target-img) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname target-img) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 (require 2htdp/image)
 
@@ -73,7 +73,7 @@
 
 
 ;; ----------------------------
-(require (planet nah22/racketui))
+(require racketui)
 
 (define/web color/web
   (oneof ["Black" (constant "black")]
@@ -81,6 +81,7 @@
          ["Red" (constant "red")]
          ["Blue" (constant "blue")]))
 
+#;
 (web-launch
  "Bulls Eye Generator"
  (function "Produces a bullseye target image with rings colored as you specify."

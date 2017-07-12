@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname wgt-on-moon-simple) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname wgt-on-moon-simple) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 
 ;; wgt-on-moon : number -> number
@@ -14,10 +14,9 @@
 
 
 
-(require (planet nah22/racketui))
+(require racketui)
 
-
-
+#;
 (web-launch 
  "Moon Weight Computer"
  (function "This program computes what your weight would

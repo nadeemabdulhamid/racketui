@@ -1,9 +1,10 @@
 #lang setup/infotab
 
-(define name "RacketUI")
-(define version "0.6.0")
+(define name "racketui")
+(define version "0.7.0")
 (define release-notes
   (list '(ul
+          (li "Fix up tests for new pkgs server")
           (li "Initial support for image fields added (specified by URL)")
           (li "Documentation updates (added screenshots)")
           )))
@@ -24,6 +25,5 @@
                "htdp-lib"
                "srfi-lite-lib"
                "web-server-lib"))
-(define build-deps '("planet-doc"
-                     "racket-doc"
+(define build-deps '("racket-doc"
                      "scribble-lib"))

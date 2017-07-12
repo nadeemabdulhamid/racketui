@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname counter-change-img) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname counter-change-img) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 (require 2htdp/image)
 
@@ -22,8 +22,9 @@
          (beside top-right top-left)))
 
 
-(require (planet nah22/racketui))
+(require racketui)
 
+#;
 (web-launch
  "Criss-Cross"
  (function "Produces a criss-crossed arrangement of two pictures you select."

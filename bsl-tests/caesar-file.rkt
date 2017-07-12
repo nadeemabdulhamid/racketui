@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname caesar-file) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname caesar-file) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 (require racket/string)  ; string-join
 (require 2htdp/batch-io)
@@ -41,8 +41,9 @@
                 "\n")))
 
 
-(require (planet nah22/racketui))
+(require racketui)
 
+#;
 (web-launch "!Encryptor!"
  (function "Use this program to encrypt your most secret files."
    (encryptFile ["Input file" filename]

@@ -95,7 +95,7 @@
 ;; ============================================================================
 
 ;(go acro/tf)
-(go accugrade/tf)
+;(go accugrade/tf)
 
 #;(web-launch "Acronym Builder"
             (function 

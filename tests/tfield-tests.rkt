@@ -892,7 +892,7 @@ AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO
      (check-equal? (extract&apply-args samp-func (list tl1 ts1) to1)
                    `(failure ,ERRMSG/MISSING-INPUT))
      (check-equal? (extract&apply-args samp-func (list (value->tfield ts1 "bob")) to1)
-                   `(failure ,(string-append ERRMSG/FUNC-APP ": procedure samp-func: expects 2 arguments, given 1: \"bob\"")))
+                   `(failure ,(string-append ERRMSG/FUNC-APP ": samp-func: arity mismatch;\n the expected number of arguments does not match the given number\n  expected: 2\n  given: 1\n  arguments...:\n   \"bob\"")))
      (check-equal? (extract&apply-args samp-func (list tl1 (value->tfield ts1 "bob")) ts1)
                    `(failure ,ERRMSG/MISMATCH))
      

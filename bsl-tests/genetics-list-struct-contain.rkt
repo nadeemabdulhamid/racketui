@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-abbr-reader.ss" "lang")((modname genetics-list-struct-contain) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-abbr-reader.ss" "lang")((modname genetics-list-struct-contain) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;        CSC120 Lab 7 - Lists of Structs with application in Genetics        ;;
 ;;                        (adopted from Kathi Fisler, WPI)                    ;;
@@ -223,7 +223,7 @@
 
 
 
-(require (planet nah22/racketui))
+(require racketui)
 
 
 (define/web gene-seq/web
@@ -249,6 +249,7 @@
                       ["Kennel (all labs)" (listof ["Lab" lab/web])]
                       -> ["Compatible males" (listof ["Lab" lab/web])])))
 
+#;
 (web-launch matefinder)
 
 

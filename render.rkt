@@ -107,7 +107,7 @@
 (define (render-basic/edit name classes label input-elt error)
   ((div-wrapper name `(tfield tfield-basic ,@classes))
    (list (if label `(span ([class "label"]) ,(colonize label)) "")
-         input-elt
+         (if (xexpr? input-elt) input-elt "")
          (if error `(span ([class "error"]) ,error) ""))))
 
 

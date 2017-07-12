@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname clock-img) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname clock-img) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 (require 2htdp/image)
 
@@ -55,9 +55,10 @@
 
 ;; ------------------
 
-(require (planet nah22/racketui))
-(require (planet nah22/racketui/common))
+(require racketui)
+(require racketui/common)
 
+#;
 (web-launch
  "Clock Image Generator"
  (function "Generates an image of a clock on a background of your choice (should be round'ish)."

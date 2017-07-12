@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname grades-average-list-mixed) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname grades-average-list-mixed) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 
 ;; A Grade is either:
@@ -69,7 +69,7 @@
      
 
 
-(require (planet nah22/racketui))
+(require racketui)
 
 (define/web grade/web
   (oneof ["Actual grade" number]
@@ -79,6 +79,7 @@
          ["Excused (reason)" string+]
          ["Missing" (constant empty)]))
 
+#;
 (web-launch "Grade Average Computer"
  (function "Computes the average of grades in the given list."
    (average ["Grades" (listof ["Grade Result" grade/web])]

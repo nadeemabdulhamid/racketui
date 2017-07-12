@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname all-bigger-2list) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname all-bigger-2list) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 ; all-bigger? : List-of-Numbers List-of-Numbers -> Boolean
 ; purpose to determine whether each component in the first list is bigger than each component in the second
@@ -25,9 +25,9 @@
         )
   )
 
-(require (planet nah22/racketui))
-; (require (planet "main.rkt" ("nah22" "racketui.plt" 1 1)))
+(require racketui)
 
+#;
 (web-launch
  "All Bigger?"
  (function "Checks if every number in the first list is bigger than all numbers in the second."

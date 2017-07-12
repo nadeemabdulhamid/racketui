@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname acronym-list-str) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname acronym-list-str) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 ;; acronym : List-of-string -> String
 ;; use capitalized words in the given list of strings to produce an acronym
@@ -18,9 +18,9 @@
                                          (acronym (rest a-los)))]
                          [else (acronym (rest a-los))])]))
 
-(require (planet nah22/racketui))
-; (require (planet "main.rkt" ("nah22" "racketui.plt" 1 1)))
+(require racketui)
 
+#;
 (web-launch
  "Acronym Builder"
  (function "Produces an acronym of the capitalized words in the given list."

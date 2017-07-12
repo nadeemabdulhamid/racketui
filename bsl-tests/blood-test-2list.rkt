@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname blood-test-2list) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname blood-test-2list) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 #|
  blood test
  given a list of 'normal ranges' and a list of patient readings
@@ -11,8 +11,8 @@
 ;;=========================================================================
 ;; DATA DEFINITIONS/TEMPLATES
 
-; A Range is (make-range String Number Number String)
-(define-struct range (label low high units))
+; A Range is (make-mrange String Number Number String)
+(define-struct mrange (label low high units))
 
 
 
@@ -59,13 +59,13 @@
         0.9))
 
 (define RANGES
-  (list (make-range "ALB" 2.2 3.9 "g/dl")
-        (make-range "ALKP" 23 212 "U/L")
-        (make-range "ALT" 10 100 "U/L")
-        (make-range "AMYL" 500 1500 "U/L")
-        (make-range "BUN" 7 27 "mg/dl")
-        (make-range "Ca" 7.9 12.0 "mg/dl")
-        (make-range "CREA" 0.5 1.8 "mg/dl")))
+  (list (make-mrange "ALB" 2.2 3.9 "g/dl")
+        (make-mrange "ALKP" 23 212 "U/L")
+        (make-mrange "ALT" 10 100 "U/L")
+        (make-mrange "AMYL" 500 1500 "U/L")
+        (make-mrange "BUN" 7 27 "mg/dl")
+        (make-mrange "Ca" 7.9 12.0 "mg/dl")
+        (make-mrange "CREA" 0.5 1.8 "mg/dl")))
         
 (define RESULTS
   (list (make-result "ALB" "L")
@@ -90,21 +90,21 @@
   (cond 
     [(empty? a-lorg) empty]
     [(cons? a-lorg)
-     (cons (make-result (range-label (first a-lorg)) (compute-code (first a-lorg) (first a-lord)))
+     (cons (make-result (mrange-label (first a-lorg)) (compute-code (first a-lorg) (first a-lord)))
            (readings->results (rest a-lord) (rest a-lorg)))]))
 
 
 ; compute-code : Range Reading -> ReadingCode
 ; determine whether the reading was low, normal, or high with respect to the given range
 
-(check-expect (compute-code (make-range "ALT" 10 100 "U/L") 67) "N")
-(check-expect (compute-code (make-range "ALT" 10 100 "U/L") 6) "L")
-(check-expect (compute-code (make-range "ALT" 10 100 "U/L") 167) "H")
-(check-expect (compute-code (make-range "ALT" 10 100 "U/L") 100) "N")
+(check-expect (compute-code (make-mrange "ALT" 10 100 "U/L") 67) "N")
+(check-expect (compute-code (make-mrange "ALT" 10 100 "U/L") 6) "L")
+(check-expect (compute-code (make-mrange "ALT" 10 100 "U/L") 167) "H")
+(check-expect (compute-code (make-mrange "ALT" 10 100 "U/L") 100) "N")
                   
 (define (compute-code a-range a-reading)
-  (cond [(< a-reading (range-low a-range)) "L"]
-        [(> a-reading (range-high a-range)) "H"]
+  (cond [(< a-reading (mrange-low a-range)) "L"]
+        [(> a-reading (mrange-high a-range)) "H"]
         [else "N"]))
      
 
@@ -135,7 +135,7 @@
     [(empty? a-lorg) empty]
     [(cons? a-lorg)
      (cons (above/align "left"
-                        (text (range-label (first a-lorg)) 10 "black")
+                        (text (mrange-label (first a-lorg)) 10 "black")
                         (indicator-bar (first a-lorg) (first a-lord)))
            (readings->result-bars (rest a-lorg) (rest a-lord)))]))
 
@@ -148,8 +148,8 @@
                           (cond [(string=? "N" (compute-code a-range a-reading)) "blue"]
                                 [(string=? "L" (compute-code a-range a-reading)) "red"]
                                 [(string=? "H" (compute-code a-range a-reading)) "red"]))
-               (+ 50 (* (- a-reading (range-low a-range))
-                        (/ 100 (- (range-high a-range) (range-low a-range)))))
+               (+ 50 (* (- a-reading (mrange-low a-range))
+                        (/ 100 (- (mrange-high a-range) (mrange-low a-range)))))
                5
                BAR))
 
@@ -157,11 +157,10 @@
 
 
 
-(require (planet nah22/racketui))
-
+(require racketui)
 
 (define/web range/web
-  (structure make-range ["Label" string] ["Low" number] ["High" number] ["Units" string]))
+  (structure make-mrange ["Label" string] ["Low" number] ["High" number] ["Units" string]))
 
 (define/web reading/web
   number)
@@ -172,7 +171,7 @@
              ["Result Code" (oneof ["Low Result" (constant "L")] 
                                    ["Normal Result" (constant "N")] 
                                    ["High Result" (constant "H")])]))
-
+#;
 (web-launch
  "Blood Test Result Analyzer"
  (function "Analyzes blood test results"

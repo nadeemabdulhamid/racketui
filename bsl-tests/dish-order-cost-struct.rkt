@@ -1,6 +1,6 @@
 ;; The first three lines of this file were inserted by DrRacket. They record metadata
 ;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-beginner-reader.ss" "lang")((modname dish-order-cost-struct) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname dish-order-cost-struct) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 
 
 ;A dish is (make-dish string number number number)
@@ -39,8 +39,7 @@
 
 
 
-(require (planet nah22/racketui))
-
+(require racketui)
 
 (define/web dish/web
   (structure make-dish
@@ -55,6 +54,7 @@
              ["Entree" dish/web]
              ["Dessert" dish/web]))
 
+#;
 (web-launch "Order Cost"
             (function "Computes the total cost of the order including gratuity"
                       (order-cost ["The order" order/web] -> ["Order total" number])))
