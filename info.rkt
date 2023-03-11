@@ -1,7 +1,7 @@
 #lang setup/infotab
 
 (define name "racketui")
-(define version "0.7.0")
+(define version "0.7")
 (define release-notes
   (list '(ul
           (li "Fix up tests for new pkgs server")
